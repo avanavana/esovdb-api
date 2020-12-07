@@ -1,5 +1,5 @@
 # Airtable API Proxy
-For querying the (https://airtable.com/shrFBKQwGjstk7TVn)[Earth Science Online Video Database].
+For querying the [Earth Science Online Video Database](https://airtable.com/shrFBKQwGjstk7TVn).
 
 Forked from daniloc/airtable-api-proxy
 
