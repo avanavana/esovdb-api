@@ -5,6 +5,9 @@ logs
 # Environment
 .env
 
+# Cache
+.cache*
+
 # Runtime data
 pids
 *.pid
