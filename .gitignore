@@ -6,7 +6,7 @@ logs
 .env
 
 # Cache
-.cache*
+.cache
 
 # Runtime data
 pids
