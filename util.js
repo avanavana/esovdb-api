@@ -22,9 +22,9 @@ module.exports = {
       } else {
         d = new Date(d.getTime() - d.getTimezoneOffset() * 1000 * 60);
       }
-      return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${pad(d.getHours(), 2)}:${pad(d.getMinutes(), 2)}:${pad(d.getSeconds(), 2)}`;
+      return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${module.exports.pad(d.getHours(), 2)}:${module.exports.pad(d.getMinutes(), 2)}:${module.exports.pad(d.getSeconds(), 2)}`;
     } else {
-      return date;
+      return raw;
     }
   },
   formatAuthors: (first, last, reverse = false) => {
@@ -34,9 +34,9 @@ module.exports = {
     return [
       Math.floor(duration / 3600),
       duration > 3600 ?
-        pad(Math.floor((duration % 3600) / 60), 2)
+        module.exports.pad(Math.floor((duration % 3600) / 60), 2)
         : Math.floor((duration % 3600) / 60),
-      pad(Math.floor(duration % 60), 2),
+      module.exports.pad(Math.floor(duration % 60), 2),
     ]
       .filter((i) => i.toString() !== '0')
       .join(':');

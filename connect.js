@@ -1,3 +1,4 @@
+const dotenv = require('dotenv').config();
 const Airtable = require('airtable');
 
 const base = new Airtable({
@@ -27,17 +28,18 @@ module.exports = {
 
     if (cachedResult != null) {
       console.log('Cache hit. Returning cached result for ' + req.path);
-      sendResultWithResponse(cachedResult, response);
+      sendResultWithResponse(cachedResult, res);
     } else {
       console.log('Cache miss. Loading from Airtable for ' + req.path);
 
       let pg = 0;
       const ps = 3;
-
+      let data = [];
+      
       rateLimiter.wrap(
         base(videos)
           .select({
-            pageSize: pp,
+            pageSize: ps,
             maxRecords: 9,
             view: view,
             fields: [
@@ -65,9 +67,7 @@ module.exports = {
           })
           .eachPage(
             function page(records, fetchNextPage) {
-              if (pg == req.params.page) {
-                let data = [];
-
+              if (!req.params.page || pg == req.params.page) {
                 records.forEach(record => {
                   let row = {
                     title: record.get('Title'),
@@ -94,16 +94,28 @@ module.exports = {
                   data.push(row);
                 });
 
-                cache.writeCacheWithPath(cachePath, data);
                 console.log(`Returning records ${pg * ps + 1}-${(pg + 1) * ps}`);
-                sendResultWithResponse(data, res);
+                
+                if (pg == req.params.page) {
+                  //cache.writeCacheWithPath(cachePath, data);
+                  sendResultWithResponse(data, res);
+                }
+                
+                pg++;
+                fetchNextPage();
               } else {
                 pg++;
                 fetchNextPage();
               }
             },
             function done(err) {
-              sendResultWithResponse([], res);
+              if (err) {
+                console.error(err);
+                res.status(400).end(JSON.stringify(err));
+              } else {
+                cache.writeCacheWithPath(cachePath, data);
+                sendResultWithResponse(data, res);
+              }
             }
           )
       );

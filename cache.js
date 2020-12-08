@@ -3,7 +3,7 @@ const fs = require('fs');
 let cacheInterval = 60 * 5;
 
 module.exports = {
-  setCacheInterval: (interval) => {
+  setCacheInterval: interval => {
     cacheInterval = interval;
   },
   writeCacheWithPath: (path, object) => {
@@ -22,9 +22,10 @@ module.exports = {
     });
   },
   readCacheWithPath: function (path) {
+    let expired = true;
     if (fs.existsSync(path)) {
       var cachedTime = fs.statSync(path).ctime;
-      const expired =
+      expired =
         (new Date().getTime() - cachedTime) / 1000 > cacheInterval ? true : false;
     }
 
