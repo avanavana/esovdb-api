@@ -97,7 +97,6 @@ module.exports = {
                 console.log(`Returning records ${pg * ps + 1}-${(pg + 1) * ps}`);
                 
                 if (pg == req.params.page) {
-                  //cache.writeCacheWithPath(cachePath, data);
                   sendResultWithResponse(data, res);
                 }
                 
