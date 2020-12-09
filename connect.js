@@ -23,9 +23,16 @@ function cachePathForRequest(req) {
 
 module.exports = {
   listVideos: (req, res) => {
+    req.params.pg = (!req.params.pg || !Number(req.params.pg) || +req.params.pg < 0) ? null : +req.params.pg - 1;
+    if (!req.query.ps || !Number(req.query.ps || req.query.ps > 100)) { req.query.ps = 100; }
+    if (!Number(req.query.max || req.query.max == 0)) { req.query.max = null; }
+    if (req.query.max && +req.query.max < +req.query.ps) { req.query.ps = req.query.max ;}
+    const queryText = req.params.pg !== null ? ('for page ' + (req.params.pg + 1) + ' (' + req.query.ps + ' results per page)') : ('(' + req.query.ps + ' results per page, ' + (req.query.max ? 'up to ' + req.query.max : 'for all') + ' results)');
+    console.log(`Performing videos/list API request ${queryText}`);
+    
     const cachePath = cachePathForRequest(req);
     const cachedResult = cache.readCacheWithPath(cachePath);
-
+    
     if (cachedResult != null) {
       console.log('Cache hit. Returning cached result for ' + req.path);
       sendResultWithResponse(cachedResult, res);
@@ -33,41 +40,43 @@ module.exports = {
       console.log('Cache miss. Loading from Airtable for ' + req.path);
 
       let pg = 0;
-      const ps = 3;
+      const ps = +req.query.ps;
       let data = [];
+      let options = {
+        pageSize: ps,
+        view: view,
+        fields: [
+          'Title',
+          'URL',
+          'Year',
+          'Description',
+          'Running Time',
+          'Format',
+          'Topic',
+          'Learn More',
+          'Series Text',
+          'Vol.',
+          'No.',
+          'Publisher Text',
+          'Presenter First Name',
+          'Presenter Last Name',
+          'Language Code',
+          'Location',
+          'Plus Code',
+          'Video Provider',
+          'ESOVDBID',
+          'ISO Added'
+        ]
+      };
       
+      if (req.query.max) options.maxRecords = req.query.max;
+
       rateLimiter.wrap(
         base(videos)
-          .select({
-            pageSize: ps,
-            maxRecords: 9,
-            view: view,
-            fields: [
-              'Title',
-              'URL',
-              'Year',
-              'Description',
-              'Running Time',
-              'Format',
-              'Topic',
-              'Learn More',
-              'Series Text',
-              'Vol.',
-              'No.',
-              'Publisher Text',
-              'Presenter First Name',
-              'Presenter Last Name',
-              'Language Code',
-              'Location',
-              'Plus Code',
-              'Video Provider',
-              'ESOVDBID',
-              'ISO Added'
-            ]
-          })
+          .select(options)
           .eachPage(
             function page(records, fetchNextPage) {
-              if (!req.params.page || pg == req.params.page) {
+              if (!req.params.pg || pg == req.params.pg) {
                 records.forEach(record => {
                   let row = {
                     title: record.get('Title'),
@@ -96,7 +105,7 @@ module.exports = {
 
                 console.log(`Returning records ${pg * ps + 1}-${(pg + 1) * ps}`);
                 
-                if (pg == req.params.page) {
+                if (pg == req.params.pg) {
                   sendResultWithResponse(data, res);
                 }
                 

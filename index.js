@@ -5,13 +5,7 @@ const cleanUp = require('node-cleanup');
 
 const connect = require('./connect');
 
-app.get('/api/videos/list/:page', (req, res) => {
-  console.log('Performing videos.list() API request for page ' + req.params.page);
-  connect.listVideos(req, res);
-});
-
-app.get('/api/videos/list', (req, res) => {
-  console.log('Performing videos.list() API request');
+app.get('/api/videos/list/:pg?', (req, res) => {
   connect.listVideos(req, res);
 });
 
