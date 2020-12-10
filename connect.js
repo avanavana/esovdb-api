@@ -17,8 +17,8 @@ function sendResultWithResponse(data, res) {
   res.status(200).end(JSON.stringify(data));
 }
 
-function cachePathForRequest(req) {
-  return '.cache' + req.path + '.json';
+function cachePathForRequest(url) {
+  return '.cache' + url + '.json';
 }
 
 module.exports = {
@@ -29,15 +29,15 @@ module.exports = {
     if (req.query.max && +req.query.max < +req.query.ps) { req.query.ps = req.query.max ;}
     const queryText = req.params.pg !== null ? ('for page ' + (req.params.pg + 1) + ' (' + req.query.ps + ' results per page)') : ('(' + req.query.ps + ' results per page, ' + (req.query.max ? 'up to ' + req.query.max : 'for all') + ' results)');
     console.log(`Performing videos/list API request ${queryText}`);
-    
-    const cachePath = cachePathForRequest(req);
+
+    const cachePath = cachePathForRequest(req.url);
     const cachedResult = cache.readCacheWithPath(cachePath);
     
     if (cachedResult != null) {
-      console.log('Cache hit. Returning cached result for ' + req.path);
+      console.log('Cache hit. Returning cached result for ' + req.url);
       sendResultWithResponse(cachedResult, res);
     } else {
-      console.log('Cache miss. Loading from Airtable for ' + req.path);
+      console.log('Cache miss. Loading from Airtable for ' + req.url);
 
       let pg = 0;
       const ps = +req.query.ps;
@@ -69,7 +69,7 @@ module.exports = {
         ]
       };
       
-      if (req.query.max) options.maxRecords = req.query.max;
+      if (req.query.max) options.maxRecords = +req.query.max;
 
       rateLimiter.wrap(
         base(videos)

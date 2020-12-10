@@ -7,6 +7,7 @@ module.exports = {
     cacheInterval = interval;
   },
   writeCacheWithPath: (path, object) => {
+    console.log(path);
     `/${path}`
       .split('/')
       .splice(0, `/${path}`.split('/').length - 1)
