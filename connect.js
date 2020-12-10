@@ -24,10 +24,10 @@ function cachePathForRequest(url) {
 module.exports = {
   listVideos: (req, res) => {
     req.params.pg = (!req.params.pg || !Number(req.params.pg) || +req.params.pg < 0) ? null : +req.params.pg - 1;
-    if (!req.query.ps || !Number(req.query.ps || req.query.ps > 100)) { req.query.ps = 100; }
-    if (!Number(req.query.max || req.query.max == 0)) { req.query.max = null; }
-    if (req.query.max && +req.query.max < +req.query.ps) { req.query.ps = req.query.max ;}
-    const queryText = req.params.pg !== null ? ('for page ' + (req.params.pg + 1) + ' (' + req.query.ps + ' results per page)') : ('(' + req.query.ps + ' results per page, ' + (req.query.max ? 'up to ' + req.query.max : 'for all') + ' results)');
+    if (!req.query.pageSize || !Number(req.query.pageSize || req.query.pageSize > 100)) { req.query.pageSize = 100; }
+    if (!Number(req.query.maxRecords || req.query.maxRecords == 0)) { req.query.maxRecords = null; }
+    if (req.query.maxRecords && +req.query.maxRecords < +req.query.pageSize) { req.query.pageSize = req.query.maxRecords ;}
+    const queryText = req.params.pg !== null ? ('for page ' + (req.params.pg + 1) + ' (' + req.query.pageSize + ' results per page)') : ('(' + req.query.pageSize + ' results per page, ' + (req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all') + ' results)');
     console.log(`Performing videos/list API request ${queryText}`);
 
     const cachePath = cachePathForRequest(req.url);
@@ -40,7 +40,7 @@ module.exports = {
       console.log('Cache miss. Loading from Airtable for ' + req.url);
 
       let pg = 0;
-      const ps = +req.query.ps;
+      const ps = +req.query.pageSize;
       let data = [];
       let options = {
         pageSize: ps,
@@ -69,7 +69,7 @@ module.exports = {
         ]
       };
       
-      if (req.query.max) options.maxRecords = +req.query.max;
+      if (req.query.maxRecords) options.maxRecords = +req.query.maxRecords;
 
       rateLimiter.wrap(
         base(videos)
