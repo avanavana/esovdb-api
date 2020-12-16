@@ -24,8 +24,8 @@ function cachePathForRequest(url) {
 module.exports = {
   listVideos: (req, res) => {
     req.params.pg =
-      !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0
-        ? null
+      !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 
+        ? null 
         : +req.params.pg - 1;
     if (
       !req.query.pageSize ||
@@ -114,7 +114,7 @@ module.exports = {
                     series: record.get('Series Text') || '',
                     vol: record.get('Vol.') || '',
                     no: record.get('No.') || '',
-                    seriesCount: record.get('Series Count') || '',
+                    seriesCount: record.get('Series Count Text') || '',
                     publisher: record.get('Publisher Text') || '',
                     presenters: util.packageAuthors(
                       record.get('Presenter First Name'),
