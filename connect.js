@@ -78,6 +78,7 @@ module.exports = {
           'Topic',
           'Learn More',
           'Series Text',
+          'Series Count Text',
           'Vol.',
           'No.',
           'Publisher Text',
@@ -112,9 +113,9 @@ module.exports = {
                     topic: record.get('Topic'),
                     learnMore: record.get('Learn More'),
                     series: record.get('Series Text') || '',
+                    seriesCount: record.get('Series Count Text') || '',
                     vol: record.get('Vol.') || '',
                     no: record.get('No.') || '',
-                    seriesCount: record.get('Series Count Text') || '',
                     publisher: record.get('Publisher Text') || '',
                     presenters: util.packageAuthors(
                       record.get('Presenter First Name'),
