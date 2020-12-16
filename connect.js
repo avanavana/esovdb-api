@@ -89,6 +89,7 @@ module.exports = {
           'Plus Code',
           'Video Provider',
           'ESOVDBID',
+          'Record ID',
           'ISO Added',
         ],
       };
@@ -126,6 +127,7 @@ module.exports = {
                     plusCode: record.get('Plus Code') || '',
                     provider: record.get('Video Provider') || '',
                     esovdbId: record.get('ESOVDBID') || '',
+                    recordId: record.get('Record ID') || '',
                     accessDate: util.formatDate(record.get('ISO Added')) || '',
                   };
 

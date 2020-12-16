@@ -69,7 +69,7 @@ module.exports = {
       } else {
         d = new Date(d.getTime() - d.getTimezoneOffset() * 1000 * 60);
       }
-      return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${module.exports.pad(d.getHours(), 2)}:${module.exports.pad(d.getMinutes(), 2)}:${module.exports.pad(d.getSeconds(), 2)}`;
+      return `${d.getFullYear()}-${d.getMonth() + 1}-${module.exports.pad(d.getDate(), 2)} ${module.exports.pad(d.getHours(), 2)}:${module.exports.pad(d.getMinutes(), 2)}:${module.exports.pad(d.getSeconds(), 2)}`;
     } else {
       return rawDate;
     }
