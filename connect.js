@@ -79,25 +79,26 @@ module.exports = {
               if (!req.params.pg || pg == req.params.pg) {
                 records.forEach(record => {
                   let row = {
-                    title: record.get('Title'),
-                    url: record.get('URL'),
-                    year: record.get('Year'),
-                    desc: record.get('Description'),
-                    runningTime: util.formatDuration(record.get('Running Time')),
-                    format: record.get('Format'),
+                    title: record.get('Title') || '',
+                    url: record.get('URL') || '',
+                    year: record.get('Year') || '',
+                    desc: record.get('Description') || '',
+                    runningTime: util.formatDuration(record.get('Running Time')) || '',
+                    format: record.get('Format') || '',
                     topic: record.get('Topic'),
                     learnMore: record.get('Learn More'),
-                    series: record.get('Series Text'),
-                    vol: record.get('Vol.'),
-                    no: record.get('No.'),
-                    publisher: record.get('Publisher Text'),
-                    presenters: util.formatAuthors(record.get('Presenter First Name'), record.get('Presenter Last Name'), true),
-                    language: record.get('Language Code'),
-                    location: record.get('Location'),
-                    plusCode: record.get('Plus Code'),
-                    provider: record.get('Video Provider'),
-                    esovdbId: record.get('ESOVDBID'),
-                    accessDate: util.formatDate(record.get('ISO Added'))
+                    series: record.get('Series Text') || '',
+                    vol: record.get('Vol.') || '',
+                    no: record.get('No.') || '',
+                    seriesCount: record.get('Series Count')[0] || '',
+                    publisher: record.get('Publisher Text') || '',
+                    presenters: util.packageAuthors(record.get('Presenter First Name'), record.get('Presenter Last Name')),
+                    language: record.get('Language Code') || '',
+                    location: record.get('Location') || '',
+                    plusCode: record.get('Plus Code') || '',
+                    provider: record.get('Video Provider') || '',
+                    esovdbId: record.get('ESOVDBID') || '',
+                    accessDate: util.formatDate(record.get('ISO Added')) || ''
                   };
 
                   data.push(row);

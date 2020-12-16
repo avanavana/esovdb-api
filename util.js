@@ -78,10 +78,10 @@ module.exports = {
    * Merges separate arrays for first and last names of authors into an array of full names of authors in a specified format
    * @example
    * // returns ['John C. Smith', 'F. Johnson', 'Marjorie García-Gamboa']
-   * formatAuthors(['John C.', 'F.', 'Marjorie'],['Smith', 'Johnson', 'García-Gamboa']);
+   * formatAuthors(['John C.', 'F.', 'Marjorie'], ['Smith', 'Johnson', 'García-Gamboa']);
    * @example
    * // returns ['Smith, John C.', 'Johnson, F.', 'García-Gamboa, Marjorie']
-   * formatAuthors(['John C.', 'F.', 'Marjorie'],['Smith', 'Johnson', 'García-Gamboa'], true);
+   * formatAuthors(['John C.', 'F.', 'Marjorie'], ['Smith', 'Johnson', 'García-Gamboa'], true);
    * @param {Array} first - An array of first names
    * @param {Array} last - An array of last names
    * @param {boolean} [reverse=false] - Whether or not to reverse the order of names in the return value
@@ -89,6 +89,18 @@ module.exports = {
    */
   formatAuthors: (first, last, reverse = false) => {
     return reverse ? first.map((f, i) => last[i] + (f.length > 0 ? ', ' + f : '')) : first.map((f, i) => (f.length > 0 ? f + ' ' : '') + last[i]);
+  },
+  /*
+   * Merges separate arrays for first and last names of authors into a single array of author objects, with keys for first and last name
+   * @example
+   * // returns [{ firstName: 'John C.', lastName: 'Smith' }, { firstName: 'F.', lastName: 'Johnson' }, { firstName: 'Marjorie', lastName: 'Marjorie García-Gamboa' }]
+   * formatAuthors(['John C.', 'F.', 'Marjorie'], ['Smith', 'Johnson', 'García-Gamboa']);
+   * @param {Array} first - An array of first names
+   * @param {Array} last - An array of last names
+   * @returns {Array} An array of author objects, with keys for first and last name
+   */
+  packageAuthors: (first, last) => {
+    return first.map((f, i) => { return { firstName: f, lastName: last[i] } });
   },
   /*
    * Formats an Airtable duration (seconds as integer), to h:mm:ss, m:ss, or s, as necessary
