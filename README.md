@@ -12,7 +12,7 @@ Run with `npm start` (or install [`pm2`](https://github.com/Unitech/pm2), as I p
 - Fetch a specific page of records by adding an optional `/:page` param (0-indexed) after the `api/list` endpoint
 - *Coming soon: supply `modifiedAfter` or `createdAfter` URL query params to fetch records modified or created after a specified date/time*
 
-I will probably not update the guts too much more after the last item above, because this is meant to be a lightweight solution and it already works well and soon will fulfil all my own requirements.
+I will probably not update the guts too much more after the last item above, because this is meant to be a lightweight solution and it already works well and soon will fulfill all my own requirements.
 
 MIT
 Copyright (c) 2020 Avana Vana 
