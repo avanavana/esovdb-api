@@ -7,7 +7,7 @@ Forked from [daniloc/airtable-api-proxy](https://github.com/daniloc/airtable-api
 
 Run with `npm start` (or install [`pm2`](https://github.com/Unitech/pm2), as I prefer, or [`nodemon`](https://www.npmjs.com/package/nodemon) and run it with those to keep it alive).
 
-- Cache proxy with rate limiting and exponential backoff
+- Cache proxy with rate limiting via [`bottleneck`](https://github.com/SGrondin/bottleneck)
 - Takes optional `maxRequests` & `pageSize` URL query params (Airtable limits the latter to 100)
 - Fetch a specific page of records by adding an optional `/:page` param (0-indexed) after the `api/list` endpoint
 - *Coming soon: supply `modifiedAfter` or `createdAfter` URL query params to fetch records modified or created after a specified date/time*
