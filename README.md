@@ -4,4 +4,3 @@ For querying the [Earth Science Online Video Database](https://airtable.com/shrF
 Server-side of [avanavana/zotero-esovdb](https://github.com/avanavana/zotero-esovdb).
 
 Forked from daniloc/airtable-api-proxy
-
