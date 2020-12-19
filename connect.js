@@ -102,6 +102,10 @@ module.exports = {
           .eachPage(
             function page(records, fetchNextPage) {
               if (!req.params.pg || pg == req.params.pg) {
+                console.log(
+                  `Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}...`
+                );
+                
                 records.forEach((record) => {
                   let row = {
                     title: record.get('Title') || '',
@@ -135,7 +139,7 @@ module.exports = {
                 });
 
                 console.log(
-                  `Returning records ${pg * ps + 1}-${(pg + 1) * ps}`
+                  `Successfully retrieved ${data.length} records.`
                 );
 
                 if (pg == req.params.pg) {
