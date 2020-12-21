@@ -3,10 +3,10 @@ const express = require('express');
 const app = express();
 const cleanUp = require('node-cleanup');
 
-const connect = require('./connect');
+const esovdb = require('./esovdb');
 
-app.get('/api/videos/list/:pg?', (req, res) => {
-  connect.listVideos(req, res);
+app.get('/esovdb/videos/list/:pg?', (req, res) => {
+  esovdb.listVideos(req, res);
 });
 
 app.get('/*', (req, res) => {
@@ -18,7 +18,7 @@ app.get('/*', (req, res) => {
 });
 
 const listener = app.listen(3000, '0.0.0.0', () => {
-  console.log('Airtable API proxy listening on port ' + listener.address().port);
+  console.log('API proxy listening on port ' + listener.address().port);
 });
 
 cleanUp();

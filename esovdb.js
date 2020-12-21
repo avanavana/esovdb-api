@@ -27,19 +27,46 @@ module.exports = {
       !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 
         ? null 
         : +req.params.pg - 1;
+    
     if (
       !req.query.pageSize ||
       !Number(req.query.pageSize || req.query.pageSize > 100)
     ) {
       req.query.pageSize = 100;
     }
+    
     if (!Number(req.query.maxRecords || req.query.maxRecords == 0)) {
       req.query.maxRecords = null;
     }
+    
     if (req.query.maxRecords && +req.query.maxRecords < +req.query.pageSize) {
       req.query.pageSize = req.query.maxRecords;
     }
-    const queryText =
+    
+    let modifiedAfter,
+        modifiedAfterDate,
+        createdAfter,
+        createdAfterDate;
+    
+    if (
+      req.query.modifiedAfter &&
+      typeof Date.parse(decodeURIComponent(req.query.modifiedAfter)) === 'number' &&
+      Date.parse(decodeURIComponent(req.query.modifiedAfter)) > 0
+    ) {
+      modifiedAfter = Date.parse(decodeURIComponent(req.query.modifiedAfter));
+      modifiedSincAfter = new Date(modifiedAfter);
+    }
+
+    if (
+      req.query.createdAfter &&
+      typeof Date.parse(decodeURIComponent(req.query.createdAfter)) === 'number' &&
+      Date.parse(decodeURIComponent(req.query.createdAfter)) > 0
+    ) {
+      createdAfter = Date.parse(decodeURIComponent(req.query.createdAfter));
+      createdAfterDate = new Date(createdAfter);
+    }
+    
+    let queryText =
       req.params.pg !== null
         ? 'for page ' +
           (req.params.pg + 1) +
@@ -51,6 +78,10 @@ module.exports = {
           ' results per page, ' +
           (req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all') +
           ' results)';
+    
+    queryText += modifiedAfterDate ? ', modified after ' + modifiedAfterDate.toLocaleString() : '';
+    queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
+    
     console.log(`Performing videos/list API request ${queryText}`);
 
     const cachePath = cachePathForRequest(req.url);
@@ -91,10 +122,14 @@ module.exports = {
           'ESOVDBID',
           'Record ID',
           'ISO Added',
+          'Created',
+          'Modified'
         ],
       };
 
       if (req.query.maxRecords) options.maxRecords = +req.query.maxRecords;
+      if (modifiedAfter) options.filterByFormula = `IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`;
+      if (createdAfter) options.filterByFormula = `IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`;
 
       rateLimiter.wrap(
         base(videos)
@@ -133,6 +168,8 @@ module.exports = {
                     esovdbId: record.get('ESOVDBID') || '',
                     recordId: record.get('Record ID') || '',
                     accessDate: util.formatDate(record.get('ISO Added')) || '',
+                    created: record.get('Created'),
+                    modified: record.get('Modified')
                   };
 
                   data.push(row);
