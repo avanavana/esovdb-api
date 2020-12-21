@@ -13,11 +13,11 @@ const rateLimiter = new Bottleneck({ minTime: 1005 / 5 });
 const cache = require('./cache');
 const util = require('./util');
 
-function sendResultWithResponse(data, res) {
+const sendResultWithResponse = (data, res) => {
   res.status(200).end(JSON.stringify(data));
 }
 
-function cachePathForRequest(url) {
+const cachePathForRequest = (url) => {
   return '.cache' + url + '.json';
 }
 
