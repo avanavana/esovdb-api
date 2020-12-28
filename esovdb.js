@@ -1,5 +1,15 @@
+/**
+ * @file ESOVDB Airtable API methods
+ * @author Avana Vana <dear.avana@gmail.com>
+ * @module esovdb
+ * @see {@link https://airtable.com/shrFBKQwGjstk7TVn|The Earth Science Online Video Database}
+ */
+
 const dotenv = require('dotenv').config();
 const Airtable = require('airtable');
+const Bottleneck = require('bottleneck');
+const cache = require('./cache');
+const { formatDuration, formatDate, packageAuthors } = require('./util');
 
 const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
@@ -8,20 +18,19 @@ const base = new Airtable({
 const view = 'All Online Videos';
 const videos = 'Videos';
 
-const Bottleneck = require('bottleneck');
 const rateLimiter = new Bottleneck({ minTime: 1005 / 5 });
-const cache = require('./cache');
-const util = require('./util');
-
-const sendResultWithResponse = (data, res) => {
-  res.status(200).end(JSON.stringify(data));
-}
-
-const cachePathForRequest = (url) => {
-  return '.cache' + url + '.json';
-}
 
 module.exports = {
+  
+  /*
+   *  Retrieves a list of videos page by page {@link pageSize} videos at a time (default=100), until all or {@link maxRecords}, if specified
+   *
+   *  @method listVideos
+   *  @param {Object} req
+   *  @param {Object} res
+   *  @returns 
+   */
+  
   listVideos: (req, res) => {
     req.params.pg =
       !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 
@@ -84,12 +93,12 @@ module.exports = {
     
     console.log(`Performing videos/list API request ${queryText}`);
 
-    const cachePath = cachePathForRequest(req.url);
+    const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
 
     if (cachedResult != null) {
       console.log('Cache hit. Returning cached result for ' + req.url);
-      sendResultWithResponse(cachedResult, res);
+      res.status(200).send(JSON.stringify(cachedResult));
     } else {
       console.log('Cache miss. Loading from Airtable for ' + req.url);
 
@@ -99,7 +108,10 @@ module.exports = {
       let options = {
         pageSize: ps,
         view: view,
+        sort: [{ field: 'Modified', direction: 'desc' }],
         fields: [
+          'Zotero Key',
+          'Zotero Version',
           'Title',
           'URL',
           'Year',
@@ -143,12 +155,13 @@ module.exports = {
                 
                 records.forEach((record) => {
                   let row = {
+                    zoteroKey: record.get('Zotero Key') || '',
+                    zoteroVersion: record.get('Zotero Version') || '',
                     title: record.get('Title') || '',
                     url: record.get('URL') || '',
                     year: record.get('Year') || '',
                     desc: record.get('Description') || '',
-                    runningTime:
-                      util.formatDuration(record.get('Running Time')) || '',
+                    runningTime: formatDuration(record.get('Running Time')) || '',
                     format: record.get('Format') || '',
                     topic: record.get('Topic'),
                     learnMore: record.get('Learn More'),
@@ -157,7 +170,7 @@ module.exports = {
                     vol: record.get('Vol.') || '',
                     no: record.get('No.') || '',
                     publisher: record.get('Publisher Text') || '',
-                    presenters: util.packageAuthors(
+                    presenters: packageAuthors(
                       record.get('Presenter First Name'),
                       record.get('Presenter Last Name')
                     ),
@@ -167,7 +180,7 @@ module.exports = {
                     provider: record.get('Video Provider') || '',
                     esovdbId: record.get('ESOVDBID') || '',
                     recordId: record.get('Record ID') || '',
-                    accessDate: util.formatDate(record.get('ISO Added')) || '',
+                    accessDate: formatDate(record.get('ISO Added')) || '',
                     created: record.get('Created'),
                     modified: record.get('Modified')
                   };
@@ -176,11 +189,11 @@ module.exports = {
                 });
 
                 console.log(
-                  `Successfully retrieved ${data.length} records.`
+                  `Successfully retrieved ${records.length} records.`
                 );
 
                 if (pg == req.params.pg) {
-                  sendResultWithResponse(data, res);
+                  res.status(200).send(JSON.stringify(data));
                 }
 
                 pg++;
@@ -195,12 +208,42 @@ module.exports = {
                 console.error(err);
                 res.status(400).end(JSON.stringify(err));
               } else {
+                console.log(
+                  `[DONE] Retrieved ${data.length} records.`
+                );
                 cache.writeCacheWithPath(cachePath, data);
-                sendResultWithResponse(data, res);
+                res.status(200).send(JSON.stringify(data));
               }
             }
           )
       );
     }
   },
+  updateVideos: (req, res) => {
+    let i = 0, updates = req.body, queue = req.body.length;
+
+    if (queue > 0) {
+      console.log(`Performing videos/update API request for ${queue} records...`);
+    
+      while (updates.length > 0) {
+        console.log(
+          `Updating record${updates.length > 1 ? 's' : ''} ${
+            i * 50 + 1
+          }${updates.length > 1 ? '-' : ''}${
+            updates.length > 1
+              ? i * 50 +
+                (updates.length < 50
+                  ? updates.length
+                  : 50)
+              : ''
+          } of ${queue} total...`
+        );
+
+        rateLimiter.wrap(base(videos).update(updates.slice(0, 50)));
+        i++, updates = updates.slice(50);
+      }
+      
+      res.status(200).send(JSON.stringify(updates));
+    }
+  }
 };
