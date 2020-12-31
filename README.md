@@ -34,7 +34,20 @@ Retrieves a list of records from a specified table (optional view) on Airtable, 
 - `createdAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records created after a certain date (most date strings work, uses `Date.parse()`)
 
 ### `POST` /esovdb/videos/update
-Updates one or more records on a specified table on Airtable.  The body of this post request should be an array of objects formatted as per the Airtable API spec (e.g. [ { id: 'recordID', fields: { 'Airtable Field': 'value' } }, ... ]).  Processes as many records as you give it in batches of 50, as Airtable requires using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
+Updates one or more records on a specified table on Airtable.  The body of this post request should be an array of objects formatted as per the Airtable API spec:
+```javascript
+[
+  { 
+    id: 'recordID',
+    fields: {
+      'Airtable Field': 'value',
+      ...
+    },
+  },
+  ...
+]
+```
+Processes as many records as you give it in batches of 50, as Airtable requires using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
 
 ### `POST` /zotero
 Adds items to a Zotero Library, 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically add items to my Zotero library every time a new record is created in Airtable.  My implementation further back-syncs the newly created item in Zotero with the originating table in Airtable, so that each record in Airtable has a Zotero key and version that I can use to track updates later.
