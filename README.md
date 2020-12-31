@@ -42,7 +42,7 @@ Updates one or more records on a specified table on Airtable.  The body of this 
     fields: {
       'Airtable Field': 'value',
       ...
-    },
+    }
   },
   ...
 ]
