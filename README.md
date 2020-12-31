@@ -3,7 +3,11 @@ Sets up a cache proxy server for querying the [Earth Science Online Video Databa
 
 Built as the server-side of [avanavana/zotero-esovdb](https://github.com/avanavana/zotero-esovdb).
 
-Forked from [daniloc/airtable-api-proxy](https://github.com/daniloc/airtable-api-proxy). I refactored this pretty heavilly to tailor it to the ESOVDB's needs, but you can clone or fork this for a quick start on your own Airtable API cache proxy. BYODOTENV with your Airtable API key and base ID, and adapt to your own fields, and Zotero Key and User if you also need a proxy server for the Zotero API (my implementation doesn't need caching as it's all create or update actions, but adding caching is trivial as the cache module included is built to work with any endpoint provided).  I built a set of helper functions for transforming select Airtable data into Zotero-compatible formats (again, the ultimate destination in my own usage), as well as some utility functions and middleware to either whitelist or blacklist IPs, which you can keep as a space-separated string with wildcards, also in your dotenv.  Most files have inline, JSDoc-style documentation.
+Forked from [daniloc/airtable-api-proxy](https://github.com/daniloc/airtable-api-proxy). I refactored this pretty heavilly to tailor it to the ESOVDB's needs, but you can clone or fork this for a quick start on your own Airtable API cache proxy.
+
+BYODOTENV with your Airtable API key and base ID, and adapt to your own fields, and Zotero Key and User if you also need a proxy server for the Zotero API (my implementation doesn't need caching as it's all create or update actions, but adding caching is trivial as the cache module included is built to work with any endpoint provided).
+
+I built a set of helper functions for transforming select Airtable data into Zotero-compatible formats (again, the ultimate destination in my own usage), as well as some utility functions and middleware to either whitelist or blacklist IPs, which you can keep as a space-separated string with wildcards, also in your dotenv.  Most files have inline, JSDoc-style documentation.
 
 ## Usage
 Run with `npm start` (or better yet, install [`pm2`](https://github.com/Unitech/pm2), my preference, or [`nodemon`](https://www.npmjs.com/package/nodemon) and run it with those to keep it alive).
@@ -74,7 +78,7 @@ if (data.status === 'active') {
         modified: data.modified
     };
 
-    let response = await fetch('https://airtable-api-proxy-avana.codeanyapp.com/zotero', {
+    let response = await fetch('https://your-proxy-server.com/zotero', {
         method: 'POST',
         body: JSON.stringify(record),
         headers: {
@@ -134,7 +138,7 @@ if (data.status === 'active') {
         modified: data.modified
     };
 
-    let response = await fetch('https://airtable-api-proxy-avana.codeanyapp.com/zotero', {
+    let response = await fetch('https://your-proxy-server.com/zotero', {
         method: 'PUT',
         body: JSON.stringify(record),
         headers: {
