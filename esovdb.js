@@ -15,9 +15,6 @@ const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
 }).base(process.env.AIRTABLE_BASE_ID);
 
-const view = 'All Online Videos';
-const videos = 'Videos';
-
 const rateLimiter = new Bottleneck({ minTime: 1005 / 5 });
 
 module.exports = {
@@ -91,7 +88,7 @@ module.exports = {
     queryText += modifiedAfterDate ? ', modified after ' + modifiedAfterDate.toLocaleString() : '';
     queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
     
-    console.log(`Performing videos/list API request ${queryText}`);
+    console.log(`Performing videos/list API request ${queryText}...`);
 
     const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
@@ -107,7 +104,7 @@ module.exports = {
       let data = [];
       let options = {
         pageSize: ps,
-        view: view,
+        view: 'All Online Videos',
         sort: [{ field: 'Modified', direction: 'desc' }],
         fields: [
           'Zotero Key',
@@ -144,7 +141,7 @@ module.exports = {
       if (createdAfter) options.filterByFormula = `IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`;
 
       rateLimiter.wrap(
-        base(videos)
+        base('Videos')
           .select(options)
           .eachPage(
             function page(records, fetchNextPage) {
@@ -219,31 +216,36 @@ module.exports = {
       );
     }
   },
-  updateVideos: (req, res) => {
-    let i = 0, updates = req.body, queue = req.body.length;
-
-    if (queue > 0) {
-      console.log(`Performing videos/update API request for ${queue} records...`);
-    
-      while (updates.length > 0) {
-        console.log(
-          `Updating record${updates.length > 1 ? 's' : ''} ${
-            i * 50 + 1
-          }${updates.length > 1 ? '-' : ''}${
-            updates.length > 1
-              ? i * 50 +
-                (updates.length < 50
-                  ? updates.length
-                  : 50)
-              : ''
-          } of ${queue} total...`
-        );
-
-        rateLimiter.wrap(base(videos).update(updates.slice(0, 50)));
-        i++, updates = updates.slice(50);
-      }
+  postUpdates: (videos) => {
+    let i = 0, updates = videos, queue = videos.length;
       
-      res.status(200).send(JSON.stringify(updates));
+    while (updates.length > 0) {
+      console.log(
+        `Updating record${updates.length > 1 ? 's' : ''} ${
+          i * 50 + 1
+        }${updates.length > 1 ? '-' : ''}${
+          updates.length > 1
+            ? i * 50 +
+              (updates.length < 50
+                ? updates.length
+                : 50)
+            : ''
+        } of ${queue} total...`
+      );
+
+      rateLimiter.wrap(base('Videos').update(updates.slice(0, 50)));
+      i++, updates = updates.slice(50);
+    }
+    
+    return videos;
+  },
+  updateVideos: async (req, res) => {
+    if (req.body.length > 0) {
+      console.log(`Performing videos/update API request for ${req.body.length} records...`);
+      
+      const data = await module.exports.postUpdates(req.body);
+      
+      res.status(200).send(JSON.stringify(data));
     }
   }
 };
