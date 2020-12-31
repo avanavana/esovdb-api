@@ -53,6 +53,7 @@ Processes as many records as you give it in batches of 50, as Airtable requires 
 Adds items to a Zotero Library, 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically add items to my Zotero library every time a new record is created in Airtable.  My implementation further back-syncs the newly created item in Zotero with the originating table in Airtable, so that each record in Airtable has a Zotero key and version that I can use to track updates later.
 
 **Sample Airtable Script for Automation**
+
 *Note: when using Airtable's automations, you will have to set up your input.config() object to match all the fields you want to send in the Airtable script below*
 
 ```javascript
