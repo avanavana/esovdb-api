@@ -16,7 +16,7 @@ Run with `npm start` (or better yet, install [`pm2`](https://github.com/Unitech/
 - Takes optional `maxRequests` & `pageSize` URL query params (Airtable limits the latter to 100)
 - Fetch a specific page of records by adding an optional `/:pg` param (0-indexed) after the `api/list` endpoint
 - Takes `modifiedAfter` or `createdAfter` URL query params to fetch records modified or created after a specified date/time
-- Supply a list of space-separated IP addresses with optional wildcards (e.g. 255.255.*.*) in your dotenv or elsewhere and limit access to endpoints by passing included middleware
+- Supply a list of space-separated IP addresses with optional wildcards (e.g. 255.255.\*.\* - damn stars in markdown...) in your dotenv or elsewhere and limit access to endpoints by passing included middleware
 - Sync updates you download from Airtable with a Zotero library.
 
 I will probably not update the guts too much more after the last item above, because this is meant to be a lightweight solution and it already works well and soon will fulfill all my own requirements.
