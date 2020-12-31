@@ -28,10 +28,10 @@ I built this for my own needs, and the following are the endpoints I use, but th
 Retrieves a list of records from a specified table (optional view) on Airtable, page by page, as Airtable requires, using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting, and sends the final result of all requested records as JSON. All requests are cached (cache expiration is parameterized) using the server's file system, according to the structure of the query and any additional URL params. The `/:pg?` parameter, as indicated, is optional, and allows you to query a specific page of the results, skipping all others.Gets
 
 **Additional URL Query Params:**
-`maxRequests` – Synonymous with the Airtable API's `maxRequests` param—limits the total results returned. (default: all records)
-`pageSize` – Synonymous with the Airtable API's `pageSize` param—the number of records to return with each paged request to the Airtable API.  Airtable limits this to 100 per page. (default: 100 records)
-`modifiedAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records modified after a certain date (most date strings work, uses `Date.parse()`)
-`createdAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records created after a certain date (most date strings work, uses `Date.parse()`)
+- `maxRequests` – Synonymous with the Airtable API's `maxRequests` param—limits the total results returned. (default: all records)
+- `pageSize` – Synonymous with the Airtable API's `pageSize` param—the number of records to return with each paged request to the Airtable API.  Airtable limits this to 100 per page. (default: 100 records)
+- `modifiedAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records modified after a certain date (most date strings work, uses `Date.parse()`)
+- `createdAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records created after a certain date (most date strings work, uses `Date.parse()`)
 
 ### `POST` /esovdb/videos/update
 Updates one or more records on a specified table on Airtable.  The body of this post request should be an array of objects formatted as per the Airtable API spec (e.g. [ { id: 'recordID', fields: { 'Airtable Field': 'value' } }, ... ]).  Processes as many records as you give it in batches of 50, as Airtable requires using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
