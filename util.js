@@ -57,12 +57,14 @@ module.exports = {
    * Formats ISO-8601 dates to YYYY-MM-DD hh:mm:ss (Zotero-friendly date format), in the user's local time
    *
    * @method formatDate
+   * @requires util.pad
    * @param {string} rawDate - A raw date string, may or may not be in ISO-8601 format
    * @returns {string} Date in YYYY-MM-DD hh:mm:ss format, in user's local time, if {@link rawDate} is in ISO-8601 format, otherwise returns {@link rawDate}
    *
    * @example <caption>ISO-8601 date in GMT</caption>
    * // returns '2020-12-07 16:55:43' (in EST timezone)
    * formatDate('2020-12-07T21:55:43.000Z');
+   *
    * @example <caption>ISO-8601 date with timezone specified</caption>
    * // returns '2020-12-07 16:55:43' (in EST timezone)
    * formatDate('2020-12-07T215543-0500');

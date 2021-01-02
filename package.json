@@ -1,6 +1,6 @@
 {
   "name": "airtable-api-proxy",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Provides a cache proxy service for accessing the Earth Science Online Video Database.",
   "homepage": "https://airtable.com/shrFBKQwGjstk7TVn",
   "author": "Avana Vana <dear.avana@gmail.com> (http://www.avanavana.com)",
