@@ -1,3 +1,9 @@
+/**
+ * @file Express server with IP validation middleware and graceful cleanup
+ * @author Avana Vana <dear.avana@gmail.com>
+ * @version 1.4.0
+ */
+
 const dotenv = require('dotenv').config();
 const express = require('express');
 const cleanUp = require('node-cleanup');
@@ -8,6 +14,17 @@ const zotero = require('./zotero');
 const app = express();
 
 const middleware = {
+  
+  /**
+   *  Middleware for blacklisting or whitelisting IP addresses and/or IP address ranges, which can be applied to specific endpoints
+   *
+   *  @method validateReq
+   *  @requires utils.patternsToRegEx
+   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
+   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
+   *  @param {function} next - The next middleware function in the stack
+   */
+  
   validateReq: (req, res, next) => {
     const d = new Date(), ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
 
@@ -25,13 +42,31 @@ const middleware = {
   }
 }
 
+/**
+ *  API endpoint for querying the ESOVDB, returns JSON. All request params and request query params documented in [esovdb.listVideos]{@link esovdb.listVideos}.
+ *  @requires esovdb
+ *  @callback esovdb.listVideos
+ */
+
 app.get('/esovdb/videos/list/:pg?', middleware.validateReq, (req, res) => {
   esovdb.listVideos(req, res);
 });
 
+/**
+ *  API endpoint for back-syncing Zotero library keys and versions with the ESOVDB after adding or updating items on Zotero. Requires Zotero library API key and user authentication.
+ *  @requires esovdb
+ *  @callback esovdb.updateVideos
+ */
+
 app.post('/esovdb/videos/update', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   esovdb.updateVideos(req, res);
 });
+
+/**
+ *  API endpoints for Airtable automations, POST /zotero for onCreateRecord and PUT /zotero for onUpdateRecord automations
+ *  @requires zotero
+ *  @callback zotero.syncItems
+ */
 
 app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/create API request...`);
@@ -43,6 +78,11 @@ app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true
   zotero.syncItems(req, res);
 });
 
+/**
+ *  API endpoint which is the end of all other endpoints
+ *  @callback Sends an HTTP 400 Bad Request status code and an error message in JSON format
+ */
+
 app.get('/*', (req, res) => {
   const err = {
     Error: 'API endpoint not found',
@@ -51,8 +91,18 @@ app.get('/*', (req, res) => {
   res.status(400).end(JSON.stringify(err));
 });
 
+/**
+ *  Starts server on port 3000, my particular setup requires a host of '0.0.0.0', but you can put anything you want here or leave the host argument out.
+ *  @callback Logs the start of the server session and port on which the server is listening.
+ */
+
 const listener = app.listen(3000, '0.0.0.0', () => {
   console.log('API proxy listening on port ' + listener.address().port);
 });
+
+/**
+ *  Instance of node-cleanup, for graceful shutdown of server.
+ *  @requires node-cleanup
+ */
 
 cleanUp();

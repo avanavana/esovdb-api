@@ -20,12 +20,20 @@ const rateLimiter = new Bottleneck({ minTime: 1005 / 5 });
 module.exports = {
   
   /*
-   *  Retrieves a list of videos page by page {@link pageSize} videos at a time (default=100), until all or {@link maxRecords}, if specified
+   *  Retrieves a list of videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query, page by page {@link req.query.pageSize} videos at a time (default=100), until all or {@link req.query.maxRecords}, if specified, using Botleneck for rate-limiting.  
    *
    *  @method listVideos
-   *  @param {Object} req
-   *  @param {Object} res
-   *  @returns 
+   *  @requires Airtable
+   *  @requires Bottleneck
+   *  @requires cache
+   *  @requires util
+   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
+   *  @param {number} [req.params.pg = null] - An Express.js route param optionally passed after videos/list, which specifies which page of a given {@link pageSize} number records should be sent in the [server response]{@link res}
+   *  @param {number} [req.query.pageSize = 100] - An [http request]{@link req} URL query param that specifies how many Airtable records to return in each API call
+   *  @param {number} [req.query.pageSize = null] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
+   *  @param {string} [req.query.createdAfter = null] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
+   *  @param {string} [req.query.modifiedAfter = null] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
+   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
    */
   
   listVideos: (req, res) => {
@@ -60,7 +68,7 @@ module.exports = {
       Date.parse(decodeURIComponent(req.query.modifiedAfter)) > 0
     ) {
       modifiedAfter = Date.parse(decodeURIComponent(req.query.modifiedAfter));
-      modifiedSincAfter = new Date(modifiedAfter);
+      modifiedAfterDate = new Date(modifiedAfter);
     }
 
     if (
@@ -101,7 +109,6 @@ module.exports = {
 
       let pg = 0;
       const ps = +req.query.pageSize;
-      let data = [];
       let options = {
         pageSize: ps,
         view: 'All Online Videos',
@@ -139,6 +146,8 @@ module.exports = {
       if (req.query.maxRecords) options.maxRecords = +req.query.maxRecords;
       if (modifiedAfter) options.filterByFormula = `IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`;
       if (createdAfter) options.filterByFormula = `IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`;
+      
+      let data = [];
 
       rateLimiter.wrap(
         base('Videos')
@@ -216,10 +225,21 @@ module.exports = {
       );
     }
   },
-  postUpdates: (videos) => {
+  
+  /*
+   *  Updates one or more Airtable records using the non-destructive Airtable update() method, at most 50 at a time, until all provided records have been updated, using Bottleneck for rate-limiting.
+   *
+   *  @method processUpdates
+   *  @requires Airtable
+   *  @requires Bottleneck
+   *  @param {Object[]} videos - An array of objects formatted as updates for Airtable (i.e. [ { id: 'recordId', fields: { 'Airtable Field': 'value', ... } }, ... ])
+   *  @returns {Object[]} The original array of video update objects, {@link videos}, passed to {@link processUpdates}
+   */
+  
+  processUpdates: (videos) => {
     let i = 0, updates = videos, queue = videos.length;
       
-    while (updates.length > 0) {
+    while (updates.length) {
       console.log(
         `Updating record${updates.length > 1 ? 's' : ''} ${
           i * 50 + 1
@@ -233,17 +253,27 @@ module.exports = {
         } of ${queue} total...`
       );
 
-      rateLimiter.wrap(base('Videos').update(updates.slice(0, 50)));
-      i++, updates = updates.slice(50);
+      i++, rateLimiter.wrap(base('Videos').update(updates.splice(0, 50)));
     }
     
     return videos;
   },
+  
+  /*
+   *  Passes the body of an HTTP POST request to this server on to {@link processUpdates} for updating records on Airtable and sends a 200 server response with the array of objects originally passed to it in the [request body]{@link req.body}.
+   *
+   *  @async
+   *  @method updateVideos
+   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
+   *  @param {Object[]} req.body - An array of objects formatted as updates for Airtable (i.e. [ { id: 'recordId', fields: { 'Airtable Field': 'value', ... } }, ... ]) passed as the body of the [server request]{@link req}
+   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
+   */
+  
   updateVideos: async (req, res) => {
     if (req.body.length > 0) {
       console.log(`Performing videos/update API request for ${req.body.length} records...`);
       
-      const data = await module.exports.postUpdates(req.body);
+      const data = await module.exports.processUpdates(req.body);
       
       res.status(200).send(JSON.stringify(data));
     }

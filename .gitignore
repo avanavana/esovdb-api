@@ -8,6 +8,9 @@ logs
 # Cache
 .cache
 
+# Debugging data
+failed.json
+
 # Runtime data
 pids
 *.pid

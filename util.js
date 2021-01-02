@@ -90,6 +90,8 @@ module.exports = {
   /*
    * Merges separate arrays for first and last names of authors into an array of full names of authors in a specified format
    *
+   * @deprecated Superseded by {@link packageAuthors}, since Zotero supports separate first and last name fields, but kept here for other future implementations
+   * 
    * @method formatAuthors
    * @param {string[]} first - An array of first name strings
    * @param {string[]} last - An array of last name strings
@@ -155,6 +157,8 @@ module.exports = {
   
   /*
    * Returns an array of IP addresses from a string of space separated IP patterns, expanding any wildcard characters (*)
+   *
+   * @deprecated /!\ DO NOT USE /!\ - superseded by {@link patternsToRegEx}, which is far more efficient—just a single IP with two wildcards passed to this method creates an array with 65,536 elements...with four wildcards it would be ~4.3 billion elements in length...but just too cool of a one-liner for me to delete
    *
    * @method patternsToArray
    * @param {string} patterns - List of ip addresses, space-separated, with optional wildcard parts (*)
