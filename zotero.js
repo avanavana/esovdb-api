@@ -29,6 +29,9 @@ const zotero = axios.create({
 
 zoteroLibrary.defaults.headers.post['Content-Type'] = 'application/json';
 
+/** @constant {number} [zoteroRateLimit=10] - Time in seconds to wait between requests to the Zotero API to avoid rate-limiting */
+const zoteroRateLimit = 10;
+
 /*
  * Utility sleep function based on units of seconds that returns a promise and can be consumed by async/await
  *
@@ -104,9 +107,9 @@ const getTemplate = async () => {
 
 /**
  * @typedef {Object} ZoteroResponse
- * @property {(Object[]|null)} successful - An array of succesfully added or updated Zotero item objects
- * @property {(string[]|null)} unchanged - An array of Zotero item keys of Zotero items which remained unchanged after the POST request either because no changes were sent or the version sent was outdated
- * @property {(Object[]|null)} failed - An array of Zotero item objects which failed in their attempts to be added or updated, perhaps due to format/syntactical or structural errors
+ * @property {?Object[]} successful - An array of succesfully added or updated Zotero item objects
+ * @property {?string[]} unchanged - An array of Zotero item keys of Zotero items which remained unchanged after the POST request either because no changes were sent or the version sent was outdated
+ * @property {?Object[]} failed - An array of Zotero item objects which failed in their attempts to be added or updated, perhaps due to format/syntactical or structural errors
  */
 
 /*
@@ -289,7 +292,7 @@ module.exports = {
       totalUnchanged += unchanged.length;
       totalFailed += failed.length;
       
-      if (items.length > 50) await sleep(10);
+      if (items.length > 50) await sleep(zoteroRateLimit);
 
       i++;
     }

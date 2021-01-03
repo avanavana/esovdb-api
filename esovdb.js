@@ -15,7 +15,14 @@ const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
 }).base(process.env.AIRTABLE_BASE_ID);
 
-const rateLimiter = new Bottleneck({ minTime: 1005 / 5 });
+/**
+ *  @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck}
+ *  @default 201 (201 = 1005 / 5, or 5 per second, with wiggle room)
+ */
+
+const airtableRateLimit = 1005 / 5;
+
+const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 
 module.exports = {
   
@@ -28,11 +35,11 @@ module.exports = {
    *  @requires cache
    *  @requires util
    *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
-   *  @param {number} [req.params.pg=null] - An Express.js route param optionally passed after videos/list, which specifies which page of a given {@link pageSize} number records should be sent in the [server response]{@link res}
+   *  @param {number} [req.params.pg] - An Express.js route param optionally passed after videos/list, which specifies which page of a given {@link pageSize} number records should be sent in the [server response]{@link res}
    *  @param {number} [req.query.pageSize=100] - An [http request]{@link req} URL query param that specifies how many Airtable records to return in each API call
-   *  @param {number} [req.query.pageSize=null] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
-   *  @param {string} [req.query.createdAfter=null] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
-   *  @param {string} [req.query.modifiedAfter=null] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
+   *  @param {number} [req.query.pageSize] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
+   *  @param {string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
+   *  @param {string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
    *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
    */
   

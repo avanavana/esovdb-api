@@ -53,7 +53,7 @@ module.exports = {
    *
    * @method writeCacheWithPath
    * @param {string} path - The request's URL, with query params
-   * @returns {(Object|null)} Returns cache JSON data as an Object if it exists and is still fresh, null otherwise
+   * @returns {?Object} Returns cache JSON data as an Object if it exists and is still fresh, null otherwise
    */
   
   readCacheWithPath: function (path) {
