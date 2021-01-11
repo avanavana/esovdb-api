@@ -1,7 +1,7 @@
 /**
  * @file Express server with IP validation middleware and graceful cleanup
  * @author Avana Vana <dear.avana@gmail.com>
- * @version 1.4.2
+ * @version 1.5.0
  */
 
 const dotenv = require('dotenv').config();
@@ -16,10 +16,10 @@ const app = express();
 const middleware = {
   
   /**
-   *  Middleware for blacklisting or whitelisting IP addresses and/or IP address ranges, which can be applied to specific endpoints
+   *  Middleware for blacklisting or whitelisting IP addresses and/or IP address ranges, which can be passed to specific endpoints
    *
    *  @method validateReq
-   *  @requires utils.patternsToRegEx
+   *  @requires util.patternsToRegEx
    *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
    *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
    *  @param {function} next - The next middleware function in the stack
@@ -80,7 +80,7 @@ app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true
 
 /**
  *  API endpoint which is the end of all other endpoints
- *  @callback Sends an HTTP 400 Bad Request status code and an error message in JSON format
+ *  @callback - Sends an HTTP 400 Bad Request status code and an error message in JSON format
  */
 
 app.get('/*', (req, res) => {
@@ -93,7 +93,7 @@ app.get('/*', (req, res) => {
 
 /**
  *  Starts server on port 3000, my particular setup requires a host of '0.0.0.0', but you can put anything you want here or leave the host argument out.
- *  @callback Logs the start of the server session and port on which the server is listening.
+ *  @callback - Logs the start of the server session and port on which the server is listening.
  */
 
 const listener = app.listen(3000, '0.0.0.0', () => {

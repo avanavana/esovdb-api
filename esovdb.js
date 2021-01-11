@@ -15,11 +15,7 @@ const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
 }).base(process.env.AIRTABLE_BASE_ID);
 
-/**
- *  @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck}
- *  @default 201 (201 = 1005 / 5, or 5 per second, with wiggle room)
- */
-
+/** @constant {number} [airtableRateLimit=201] - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
 const airtableRateLimit = 1005 / 5;
 
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
@@ -244,8 +240,8 @@ module.exports = {
    */
   
   processUpdates: (videos) => {
-    let i = 0, updates = videos, queue = videos.length;
-      
+    let i = 0, updates = [...videos], queue = videos.length;
+
     while (updates.length) {
       console.log(
         `Updating record${updates.length > 1 ? 's' : ''} ${

@@ -45,6 +45,7 @@ module.exports = {
     const padding = padString
       .repeat(Math.ceil(length / padString.length))
       .substr(0, length - string.toString().length);
+    
     return length > string.toString().length ? (
       prepend ?
         padding + string.toString()
@@ -76,13 +77,16 @@ module.exports = {
     if (iso8601Format.test(rawDate)) {
       let [, year, month, day, hours, min, sec, fracSec, offset, offsetSign, offsetHours, offsetMin] = iso8601Format.exec(rawDate) || [];
       let d = new Date(year, month - 1, day, hours, min, sec);
+      
       if (fracSec) fracSec *= Math.pow(10, -1 * fracSec.length);
+      
       if (offset) {
         d.setHours(d.getHours() + offsetHours * (offsetSign === '+' ? 1 : -1));
         offsetMin && d.setMinutes(d.getMinutes() + offsetMin * (offsetSign === '+' ? 1 : -1));
       } else {
         d = new Date(d.getTime() - d.getTimezoneOffset() * 1000 * 60);
       }
+      
       return `${d.getFullYear()}-${module.exports.pad(d.getMonth() + 1, 2)}-${module.exports.pad(d.getDate(), 2)} ${module.exports.pad(d.getHours(), 2)}:${module.exports.pad(d.getMinutes(), 2)}:${module.exports.pad(d.getSeconds(), 2)}`;
     } else {
       return rawDate;

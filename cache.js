@@ -6,8 +6,7 @@
 
 const fs = require('fs');
 
-/** @constant {number} cacheInterval - The duration, in seconds after which a cache file is considered stale */
-
+/** @constant {number} [cacheInterval=300] - The duration, in seconds after which a cache file is considered stale (default: 300s = 5m) */
 let cacheInterval = 60 * 5;
 
 module.exports = {
@@ -32,17 +31,18 @@ module.exports = {
    */
   
   writeCacheWithPath: (path, data) => {
-    `/${path}`
-      .replace('?', '/')
+    const queryPath = path.replace('?', '/');
+    
+    `/${queryPath}`
       .split('/')
-      .splice(0, `/${path}`.replace('?', '/').split('/').length - 1)
+      .splice(0, `/${queryPath}`.split('/').length - 1)
       .reduce((p, c) => {
         p += `${c}/`;
         !fs.existsSync(p) && fs.mkdirSync(p);
         return p;
       });
 
-    fs.writeFile(path.replace('?', '/'), JSON.stringify(data), function (err) {
+    fs.writeFile(queryPath, JSON.stringify(data), function (err) {
       if (err) throw err;
       else console.log('Cache write succeeded: ' + path);
     });
@@ -53,17 +53,19 @@ module.exports = {
    *
    * @method writeCacheWithPath
    * @param {string} path - The request's URL, with query params
-   * @returns {?Object} Returns cache JSON data as an Object if it exists and is still fresh, null otherwise
+   * @returns {?Object} Returns cache JSON data as an object if it exists and is still fresh, else null
    */
   
   readCacheWithPath: function (path) {
     let stale = true;
-    if (fs.existsSync(path.replace('?', '/'))) {
-      var cachedTime = fs.statSync(path.replace('?', '/')).ctime;
+    path = path.replace('?', '/');
+    
+    if (fs.existsSync(path)) {
+      var cachedTime = fs.statSync(path).ctime;
       stale =
         (new Date().getTime() - cachedTime) / 1000 > cacheInterval ? true : false;
     }
 
-    return stale ? null : JSON.parse(fs.readFileSync(path.replace('?', '/'), 'utf8'));
+    return stale ? null : JSON.parse(fs.readFileSync(path, 'utf8'));
   }
 };
