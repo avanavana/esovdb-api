@@ -184,23 +184,21 @@ const formatItems = (video, template) => {
   if (video.learnMore)
     extras.push({ title: 'Learn More', value: video.learnMore });
 
-  const presenters =
-    video.presenters.length > 0
-      ? video.presenters.map((presenter) => {
-          if (presenter.lastName !== 'Unknown') {
-            return !presenter.firstName || !presenter.lastName
-              ? {
-                  creatorType: 'contributor',
-                  name: presenter.firstName || '' + presenter.lastName || '',
-                }
-              : {
-                  creatorType: 'contributor',
-                  firstName: presenter.firstName,
-                  lastName: presenter.lastName,
-                };
+  const presenters = video.presenters.length > 0
+      ? video.presenters.map((presenter) => !presenter.firstName || !presenter.lastName
+        ? {
+            creatorType: 'contributor',
+            name: presenter.firstName || '' + presenter.lastName || '',
           }
-        })
-      : [];
+        : {
+            creatorType: 'contributor',
+            firstName: presenter.firstName,
+            lastName: presenter.lastName,
+          })
+      : {
+          creatorType: 'contributor',
+          name: 'Unknown',
+        };
 
   const payload = {
     ...template,

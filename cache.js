@@ -42,8 +42,8 @@ module.exports = {
         return p;
       });
 
-    fs.writeFile(queryPath, JSON.stringify(data), function (err) {
-      if (err) throw err;
+    fs.writeFile(queryPath, JSON.stringify(data), (err) => {
+      if (err) throw new Error(err);
       else console.log('Cache write succeeded: ' + path);
     });
   },
@@ -56,12 +56,12 @@ module.exports = {
    * @returns {?Object} Returns cache JSON data as an object if it exists and is still fresh, else null
    */
   
-  readCacheWithPath: function (path) {
+  readCacheWithPath: (path) => {
     let stale = true;
     path = path.replace('?', '/');
     
     if (fs.existsSync(path)) {
-      var cachedTime = fs.statSync(path).ctime;
+      const cachedTime = fs.statSync(path).ctime;
       stale =
         (new Date().getTime() - cachedTime) / 1000 > cacheInterval ? true : false;
     }

@@ -31,12 +31,12 @@ module.exports = {
    *  @requires cache
    *  @requires util
    *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
-   *  @param {number} [req.params.pg] - An Express.js route param optionally passed after videos/list, which specifies which page of a given {@link pageSize} number records should be sent in the [server response]{@link res}
+   *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/list, which specifies which page (one-indexed) of a given {@link pageSize} number records should be sent in the [server response]{@link res}
    *  @param {number} [req.query.pageSize=100] - An [http request]{@link req} URL query param that specifies how many Airtable records to return in each API call
-   *  @param {number} [req.query.pageSize] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
-   *  @param {string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
-   *  @param {string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
-   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
+   *  @param {?number} [req.query.maxRecords] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
+   *  @param {?string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
+   *  @param {?string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
+   *  @param {Object} res - Express.js response object, an enhanced version of Node's http.ServerResponse class
    */
   
   listVideos: (req, res) => {
@@ -85,16 +85,8 @@ module.exports = {
     
     let queryText =
       req.params.pg !== null
-        ? 'for page ' +
-          (req.params.pg + 1) +
-          ' (' +
-          req.query.pageSize +
-          ' results per page)'
-        : '(' +
-          req.query.pageSize +
-          ' results per page, ' +
-          (req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all') +
-          ' results)';
+        ? `for page ${req.params.pg + 1} (${req.query.pageSize} results per page)`
+        : `(${req.query.pageSize} results per page, ${req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all'} results)`;
     
     queryText += modifiedAfterDate ? ', modified after ' + modifiedAfterDate.toLocaleString() : '';
     queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
@@ -104,7 +96,7 @@ module.exports = {
     const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
 
-    if (cachedResult != null) {
+    if (cachedResult !== null) {
       console.log('Cache hit. Returning cached result for ' + req.url);
       res.status(200).send(JSON.stringify(cachedResult));
     } else {
@@ -146,7 +138,7 @@ module.exports = {
         ],
       };
 
-      if (req.query.maxRecords) options.maxRecords = +req.query.maxRecords;
+      if (req.query.maxRecords && !req.params.pg) options.maxRecords = +req.query.maxRecords;
       if (modifiedAfter) options.filterByFormula = `IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`;
       if (createdAfter) options.filterByFormula = `IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`;
       
@@ -158,9 +150,7 @@ module.exports = {
           .eachPage(
             function page(records, fetchNextPage) {
               if (!req.params.pg || pg == req.params.pg) {
-                console.log(
-                  `Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}...`
-                );
+                console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}...`);
                 
                 records.forEach((record) => {
                   let row = {
@@ -197,12 +187,12 @@ module.exports = {
                   data.push(row);
                 });
 
-                console.log(
-                  `Successfully retrieved ${records.length} records.`
-                );
-
                 if (pg == req.params.pg) {
+                  console.log(`[DONE] Retrieved ${data.length} records.`);
+                  cache.writeCacheWithPath(cachePath, data);
                   res.status(200).send(JSON.stringify(data));
+                } else {
+                  console.log(`Successfully retrieved ${records.length} records.`);
                 }
 
                 pg++;
@@ -217,9 +207,101 @@ module.exports = {
                 console.error(err);
                 res.status(400).end(JSON.stringify(err));
               } else {
-                console.log(
-                  `[DONE] Retrieved ${data.length} records.`
-                );
+                console.log(`[DONE] Retrieved ${data.length} records.`);
+                cache.writeCacheWithPath(cachePath, data);
+                res.status(200).send(JSON.stringify(data));
+              }
+            }
+          )
+      );
+    }
+  },
+  
+  /*
+   *  Retrieves a list of YouTube videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query for 200 videos (the maximum that can be uploaded to a YouTube playlist in a day), 100 videos at a time, sorted by oldest first, using Botleneck for rate-limiting.  
+   *
+   *  @method listYouTubeVideos
+   *  @requires Airtable
+   *  @requires Bottleneck
+   *  @requires cache
+   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
+   *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/youtube, which specifies which page (one-based) the [server response]{@link res} should start from—every response sends two pages of 100 records each, for a maximum of 200 (based on YouTube's quota for adding to playlists)
+   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
+   */
+  
+  listYouTubeVideos: (req, res) => {
+    req.params.pg =
+      !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 
+        ? null 
+        : +req.params.pg - 1;
+    
+    let queryText =
+      req.params.pg !== null
+        ? `for pages ${req.params.pg + 1}-${req.params.pg + 2}, 100 records per page`
+        : 'for all records, 100 at a time';
+    
+    console.log(`Performing videos/youtube API request ${queryText}...`);
+
+    const cachePath = `.cache${req.url}.json`;
+    const cachedResult = cache.readCacheWithPath(cachePath);
+
+    if (cachedResult !== null) {
+      console.log('Cache hit. Returning cached result for ' + req.url);
+      res.status(200).send(JSON.stringify(cachedResult));
+    } else {
+      console.log('Cache miss. Loading from Airtable for ' + req.url);
+
+      let pg = 0;
+      const ps = +req.query.pageSize;
+      const options = {
+        pageSize: 100,
+        view: 'All Online Videos',
+        sort: [{ field: 'Created' }],
+        filterByFormula: `{Video Provider} = 'YouTube'`,
+        fields: [
+          'Title',
+          'YouTube Video ID',
+          'Topic'
+        ],
+      };
+      
+      if (Number(req.params.pg) && req.params.pg > 0) options.maxRecords = 200;
+      
+      let data = [];
+      
+      rateLimiter.wrap(
+        base('Videos')
+          .select(options)
+          .eachPage(
+            function page(records, fetchNextPage) {
+              if (!req.params.pg || pg == req.params.pg) {
+                console.log(`Retrieving records ${pg * 100 + 1}-${(pg + 1) * 100}...`);
+
+                records.forEach((record) => {
+                  let row = {
+                    title: record.get('Title') || '',
+                    videoId: record.get('YouTube Video ID') || '',
+                    topic: record.get('Topic') || ''
+                  };
+
+                  data.push(row);
+                });
+
+                console.log(`Successfully retrieved ${records.length} records.`);
+
+                pg++;
+                fetchNextPage();
+              } else {
+                pg++;
+                fetchNextPage();
+              }
+            },
+            function done(err) {
+              if (err) {
+                console.error(err);
+                res.status(400).end(JSON.stringify(err));
+              } else {
+                console.log(`[DONE] Retrieved ${data.length} records.`);
                 cache.writeCacheWithPath(cachePath, data);
                 res.status(200).send(JSON.stringify(data));
               }
@@ -275,9 +357,7 @@ module.exports = {
   updateVideos: async (req, res) => {
     if (req.body.length > 0) {
       console.log(`Performing videos/update API request for ${req.body.length} records...`);
-      
       const data = await module.exports.processUpdates(req.body);
-      
       res.status(200).send(JSON.stringify(data));
     }
   }

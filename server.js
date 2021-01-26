@@ -53,6 +53,16 @@ app.get('/esovdb/videos/list/:pg?', middleware.validateReq, (req, res) => {
 });
 
 /**
+ *  API endpoint for querying the ESOVDB for syncing with YouTube, returns simplified JSON. All request params and request query params documented in [esovdb.listYouTubeVideos]{@link esovdb.listYouTubeVideos}.
+ *  @requires esovdb
+ *  @callback esovdb.listYouTubeVideos
+ */
+
+app.get('/esovdb/videos/youtube/:pg?', middleware.validateReq, (req, res) => {
+  esovdb.listYouTubeVideos(req, res);
+});
+
+/**
  *  API endpoint for back-syncing Zotero library keys and versions with the ESOVDB after adding or updating items on Zotero. Requires Zotero library API key and user authentication.
  *  @requires esovdb
  *  @callback esovdb.updateVideos
