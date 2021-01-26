@@ -1,7 +1,7 @@
 /**
  * @file Express server with IP validation middleware and graceful cleanup
  * @author Avana Vana <dear.avana@gmail.com>
- * @version 1.5.0
+ * @version 1.6.1
  */
 
 const dotenv = require('dotenv').config();
