@@ -20,9 +20,9 @@ const middleware = {
    *
    *  @method validateReq
    *  @requires util.patternsToRegEx
-   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
-   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
-   *  @param {function} next - The next middleware function in the stack
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
+   *  @param {!express:NextFunction} next - The next middleware function in the stack
    */
   
   validateReq: (req, res, next) => {

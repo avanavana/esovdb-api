@@ -30,13 +30,13 @@ module.exports = {
    *  @requires Bottleneck
    *  @requires cache
    *  @requires util
-   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/list, which specifies which page (one-indexed) of a given {@link pageSize} number records should be sent in the [server response]{@link res}
    *  @param {number} [req.query.pageSize=100] - An [http request]{@link req} URL query param that specifies how many Airtable records to return in each API call
    *  @param {?number} [req.query.maxRecords] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
    *  @param {?string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
    *  @param {?string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
-   *  @param {Object} res - Express.js response object, an enhanced version of Node's http.ServerResponse class
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
    */
   
   listVideos: (req, res) => {
@@ -224,9 +224,9 @@ module.exports = {
    *  @requires Airtable
    *  @requires Bottleneck
    *  @requires cache
-   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/youtube, which specifies which page (one-based) the [server response]{@link res} should start from—every response sends two pages of 100 records each, for a maximum of 200 (based on YouTube's quota for adding to playlists)
-   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
    */
   
   listYouTubeVideos: (req, res) => {
@@ -349,9 +349,9 @@ module.exports = {
    *
    *  @async
    *  @method updateVideos
-   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {Object[]} req.body - An array of objects formatted as updates for Airtable (i.e. [ { id: 'recordId', fields: { 'Airtable Field': 'value', ... } }, ... ]) passed as the body of the [server request]{@link req}
-   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
    */
   
   updateVideos: async (req, res) => {

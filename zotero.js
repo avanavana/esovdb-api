@@ -251,9 +251,9 @@ module.exports = {
    *  @requires formatItems
    *  @requires postItems
    *  @requires updateVideos
-   *  @param {Object} req - Express.js request object, an enhanced version of Node's http.IncomingMessage class
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {(Object|Object[])} req.body - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
-   *  @param {Object} res - Express.js request object, an enhanced version of Node's http.ServerResponse class
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
    */
   
   syncItems: async (req, res) => {    
