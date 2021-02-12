@@ -1,5 +1,5 @@
 # Airtable API Proxy
-Sets up a cache proxy server for querying the [Earth Science Online Video Database](https://airtable.com/shrFBKQwGjstk7TVn), via the Airtable API, and provides methods for then back-syncing with a Zotero library.  Also includes methods for syncing with Zotero directly from updates or new records in Airtable, which can be set up with Airtable's automation (see below).
+Sets up a cache proxy server for querying the [Earth Science Online Video Database](https://airtable.com/shrFBKQwGjstk7TVn), via the Airtable API, and provides methods for then back-syncing with a Zotero library (now available to the public [here](https://www.zotero.org/groups/2764885/esovdb/library)).  Also includes methods for syncing with Zotero directly from updates or new records in Airtable, which can be set up with Airtable's automation (see below).
 
 Built as the server-side of [avanavana/zotero-esovdb](https://github.com/avanavana/zotero-esovdb).
 

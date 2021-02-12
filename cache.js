@@ -1,7 +1,7 @@
 /**
- * @file Common cache methods
- * @author Avana Vana <dear.avana@gmail.com>
- * @module cache
+ *  @file Common cache methods
+ *  @author Avana Vana <dear.avana@gmail.com>
+ *  @module cache
  */
 
 const fs = require('fs');
@@ -11,23 +11,23 @@ let cacheInterval = 60 * 5;
 
 module.exports = {
   
-  /*
-   * Sets the cache interval (in integer seconds)
+  /**
+   *  Sets the cache interval (in integer seconds)
    *
-   * @method setCacheInterval
-   * @param {number} interval - The number of seconds to set the cache interval to
+   *  @method setCacheInterval
+   *  @param {number} interval - The number of seconds to set the cache interval to
    */
   
   setCacheInterval: interval => {
     cacheInterval = interval;
   },
   
-  /*
-   * Uses a request's path to write a response as a file to the cache
+  /**
+   *  Uses a request's path to write a response as a file to the cache
    *
-   * @method writeCacheWithPath
-   * @param {string} path - The request's URL, with query params
-   * @param {Object} data - The response, as a Javascript Object, from the request
+   *  @method writeCacheWithPath
+   *  @param {string} path - The request's URL, with query params
+   *  @param {Object} data - The response, as a Javascript Object, from the request
    */
   
   writeCacheWithPath: (path, data) => {
@@ -48,12 +48,12 @@ module.exports = {
     });
   },
   
-  /*
-   * Uses a request's path to read a file from the cache if it exists or is still fresh
+  /**
+   *  Uses a request's path to read a file from the cache if it exists or is still fresh
    *
-   * @method writeCacheWithPath
-   * @param {string} path - The request's URL, with query params
-   * @returns {?Object} Returns cache JSON data as an object if it exists and is still fresh, else null
+   *  @method writeCacheWithPath
+   *  @param {string} path - The request's URL, with query params
+   *  @returns {?Object} Returns cache JSON data as an object if it exists and is still fresh, else null
    */
   
   readCacheWithPath: (path) => {

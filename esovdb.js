@@ -1,8 +1,8 @@
 /**
- * @file ESOVDB Airtable API methods
- * @author Avana Vana <dear.avana@gmail.com>
- * @module esovdb
- * @see {@link https://airtable.com/shrFBKQwGjstk7TVn|The Earth Science Online Video Database}
+ *  @file ESOVDB Airtable API methods
+ *  @author Avana Vana <dear.avana@gmail.com>
+ *  @module esovdb
+ *  @see {@link https://airtable.com/shrFBKQwGjstk7TVn|The Earth Science Online Video Database}
  */
 
 const dotenv = require('dotenv').config();
@@ -22,7 +22,7 @@ const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 
 module.exports = {
   
-  /*
+  /**
    *  Retrieves a list of videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query, page by page {@link req.query.pageSize} videos at a time (default=100), until all or {@link req.query.maxRecords}, if specified, using Botleneck for rate-limiting.  
    *
    *  @method listVideos
@@ -217,7 +217,7 @@ module.exports = {
     }
   },
   
-  /*
+  /**
    *  Retrieves a list of YouTube videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query for 200 videos (the maximum that can be uploaded to a YouTube playlist in a day), 100 videos at a time, sorted by oldest first, using Botleneck for rate-limiting.  
    *
    *  @method listYouTubeVideos
@@ -311,7 +311,7 @@ module.exports = {
     }
   },
   
-  /*
+  /**
    *  Updates one or more Airtable records using the non-destructive Airtable update() method, at most 50 at a time, until all provided records have been updated, using Bottleneck for rate-limiting.
    *
    *  @method processUpdates
@@ -344,7 +344,7 @@ module.exports = {
     return videos;
   },
   
-  /*
+  /**
    *  Passes the body of an HTTP POST request to this server on to {@link processUpdates} for updating records on Airtable and sends a 200 server response with the array of objects originally passed to it in the [request body]{@link req.body}.
    *
    *  @async
