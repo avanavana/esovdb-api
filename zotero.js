@@ -19,6 +19,8 @@ const zoteroHeaders = {
 
 const zoteroLibrary = axios.create({
   baseURL: `https://api.zotero.org/groups/${process.env.ZOTERO_GROUP}/`,
+  // the above is set for a group library—for a personal library use:
+  // baseURL: `https://api.zotero.org/users/${process.env.ZOTERO_USER}/`,
   headers: zoteroHeaders,
 });
 

@@ -5,7 +5,7 @@ Built as the server-side of [avanavana/zotero-esovdb](https://github.com/avanava
 
 Forked from [daniloc/airtable-api-proxy](https://github.com/daniloc/airtable-api-proxy). I refactored this pretty heavilly to tailor it to the ESOVDB's needs, but you can clone or fork this for a quick start on your own Airtable API cache proxy.
 
-BYODOTENV with your Airtable API key and base ID, and adapt to your own fields, and Zotero Key and User if you also need a proxy server for the Zotero API (my implementation doesn't need caching as it's all create or update actions, but adding caching is trivial as the cache module included is built to work with any endpoint provided).
+BYODOTENV with your Airtable API key and base ID, and adapt to your own fields, and Zotero Key and User if you also need a proxy server for the Zotero API (my implementation doesn't need caching as it's all create or update actions, but adding caching is trivial as the cache module included is built to work with any endpoint provided). See the `sample.env` file provided, replace with your data, and rename to `.env`.
 
 I built a set of helper functions for transforming select Airtable data into Zotero-compatible formats (again, the ultimate destination in my own usage), as well as some utility functions and middleware to either whitelist or blacklist IPs, which you can keep as a space-separated string with wildcards, also in your dotenv.  Most files have inline, JSDoc-style documentation.
 
@@ -169,4 +169,4 @@ if (data.status === 'active') {
 ```
 
 MIT
-Copyright (c) 2020 Avana Vana 
+Copyright (c) 2020-2021 Avana Vana 
