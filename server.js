@@ -63,17 +63,17 @@ app.get('/esovdb/videos/youtube/:pg?', middleware.validateReq, (req, res) => {
 });
 
 /**
- *  API endpoint for back-syncing Zotero library keys and versions with the ESOVDB after adding or updating items on Zotero. Requires Zotero library API key and user authentication.
+ *  API endpoint for back-syncing Zotero data with the ESOVDB after adding or updating items on Zotero.
  *  @requires esovdb
  *  @callback esovdb.updateVideos
  */
 
-app.post('/esovdb/videos/update', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  esovdb.updateVideos(req, res);
+app.post('/esovdb/:table/update', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  esovdb.updateTable(req, res);
 });
 
 /**
- *  API endpoints for Airtable automations, POST /zotero for onCreateRecord and PUT /zotero for onUpdateRecord automations
+ *  API POST endpoint for ESOVDB video.onCreateRecord automation
  *  @requires zotero
  *  @callback zotero.syncItems
  */
@@ -82,6 +82,12 @@ app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: tru
   console.log(`Performing zotero/create API request...`);
   zotero.syncItems(req, res);
 });
+
+/**
+ *  API PUT endpoint for ESOVDB video.onUpdateRecord automation
+ *  @requires zotero
+ *  @callback zotero.syncItems
+ */
 
 app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/update API request...`);

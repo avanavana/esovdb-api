@@ -33,8 +33,23 @@ Retrieves a list of records from a specified table (optional view) on Airtable, 
 - `modifiedAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records modified after a certain date (most date strings work, uses `Date.parse()`)
 - `createdAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records created after a certain date (most date strings work, uses `Date.parse()`)
 
-### `POST` /esovdb/videos/update
-Updates one or more records on a specified table on Airtable.  The body of this post request should be an array of objects formatted as per the Airtable API spec:
+### `POST` /esovdb/:table/update
+Creates one or more records on a specified `table` on Airtable (e.g. `/esovdb/videos/create` is the endpoint you'd use to create a new video).  The body of this post request should be an array of objects formatted as per the Airtable API spec:
+```javascript
+[
+  { 
+    fields: {
+      'Airtable Field': 'value',
+      ...
+    }
+  },
+  ...
+]
+```
+Processes as many records as you give it in batches of 50, as Airtable requires, using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
+
+### `PUT` /esovdb/:table/update
+Updates one or more records on a specified `table` on Airtable (e.g. `/esovdb/videos/update` is the endpoint you'd use to update an existing video).  The body of this post request should be an array of objects formatted as per the Airtable API spec:
 ```javascript
 [
   { 
@@ -47,10 +62,10 @@ Updates one or more records on a specified table on Airtable.  The body of this 
   ...
 ]
 ```
-Processes as many records as you give it in batches of 50, as Airtable requires using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
+Processes as many records as you give it in batches of 50, as Airtable requires, using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
 
 ### `POST` /zotero
-Adds items to a Zotero Library, 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically add items to my Zotero library every time a new record is created in Airtable.  My implementation further back-syncs the newly created item in Zotero with the originating table in Airtable, so that each record in Airtable has a Zotero key and version that I can use to track updates later.
+Adds items to a Zotero Library, 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically add items to the public ESOVDB Zotero library every time a new record is created in Airtable.  My implementation further back-syncs the newly created item in Zotero with the originating table in Airtable, so that each record in Airtable has a Zotero key and version that I can use to track updates later.  Additionally, the public ESOVDB library on Zotero contains topic and series subcollections, for each topic and series in the ESOVDB–these are automatically created when this endpoint is hit with a new series (the list of ESOVDB topics isn't changing), and videos with existing series get filed into their correct topic and series subcollections.
 
 **Sample Airtable Script for Automation**
 

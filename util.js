@@ -21,6 +21,30 @@ module.exports = {
   },
   
   /**
+   *  Sequentially reduces the results of one or more asynchronous functions, accumulating their results, in order
+   *
+   *  @async
+   *  @function queueAsync
+   *  @param {Array} functor - An array of anything, a functor, something mappable (e.g. Array.prototype.map())
+   *  @returns {Array} An array of values sequentially accumulated from each asynchronous function performed on the functor
+   */
+
+  queueAsync: async (functor) => {
+    const res = [];
+
+    functor.length > 1
+      ? await functor.reduce((a, c, i, { length }) =>
+          (i === 1 ? a() : a).then((val) => {
+            res.push(val);
+            return i === length - 1 ? c().then((val) => res.push(val)) : c();
+          })
+        )
+      : await functor[0]().then((val) => res.push(val));
+
+    return res;
+  },
+  
+  /**
    *  Pads a string to a specified length with repeated specified string
    *
    *  @method pad

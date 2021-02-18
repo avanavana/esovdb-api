@@ -15,7 +15,19 @@ const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
 }).base(process.env.AIRTABLE_BASE_ID);
 
-/** @constant {number} [airtableRateLimit=201] - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
+/** @constant {Map} tables - Maps request table params to their proper names on the ESOVDB */
+const tables = new Map([
+  ['videos', 'Videos'],
+  ['series', 'Series'],
+  ['topics', 'Topics'],
+  ['tags', 'Tags'],
+  ['organizations', 'Organizations'],
+  ['people', 'People'],
+  ['submissions', 'Submissions'],
+  ['issues', 'Issues']
+]);
+
+/** @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
 const airtableRateLimit = 1005 / 5;
 
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
@@ -111,6 +123,7 @@ module.exports = {
         fields: [
           'Zotero Key',
           'Zotero Version',
+          'Series Zotero Key',
           'Title',
           'URL',
           'Year',
@@ -156,6 +169,7 @@ module.exports = {
                   let row = {
                     zoteroKey: record.get('Zotero Key') || '',
                     zoteroVersion: record.get('Zotero Version') || '',
+                    zoteroSeries: record.get('Series Zotero Key') || '',
                     title: record.get('Title') || '',
                     url: record.get('URL') || '',
                     year: record.get('Year') || '',
@@ -181,7 +195,7 @@ module.exports = {
                     recordId: record.get('Record ID') || '',
                     accessDate: formatDate(record.get('ISO Added')) || '',
                     created: record.get('Created'),
-                    modified: record.get('Modified')
+                    modified: record.get('Modified'),
                   };
 
                   data.push(row);
@@ -317,16 +331,17 @@ module.exports = {
    *  @method processUpdates
    *  @requires Airtable
    *  @requires Bottleneck
-   *  @param {Object[]} videos - An array of objects formatted as updates for Airtable (i.e. [ { id: 'recordId', fields: { 'Airtable Field': 'value', ... } }, ... ])
+   *  @param {Object[]} items - An array of objects formatted as updates for Airtable (i.e. [ { id: 'recordId', fields: { 'Airtable Field': 'value', ... } }, ... ])
+   *  @param {string} table - The name of a table in the ESOVDB (e.g., 'Videos', 'Series', etc)
    *  @returns {Object[]} The original array of video update objects, {@link videos}, passed to {@link processUpdates}
    */
   
-  processUpdates: (videos) => {
-    let i = 0, updates = [...videos], queue = videos.length;
+  processUpdates: (items, table) => {
+    let i = 0, updates = [ ...items ], queue = items.length;
 
     while (updates.length) {
       console.log(
-        `Updating record${updates.length > 1 ? 's' : ''} ${
+        `Updating record${updates.length === 1 ? '' : 's'} ${
           i * 50 + 1
         }${updates.length > 1 ? '-' : ''}${
           updates.length > 1
@@ -338,10 +353,10 @@ module.exports = {
         } of ${queue} total...`
       );
 
-      i++, rateLimiter.wrap(base('Videos').update(updates.splice(0, 50)));
+      i++, rateLimiter.wrap(base(table).update(updates.splice(0, 50)));
     }
     
-    return videos;
+    return items;
   },
   
   /**
@@ -354,10 +369,10 @@ module.exports = {
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
    */
   
-  updateVideos: async (req, res) => {
+  updateTable: async (req, res) => {
     if (req.body.length > 0) {
-      console.log(`Performing videos/update API request for ${req.body.length} records...`);
-      const data = await module.exports.processUpdates(req.body);
+      console.log(`Performing ${req.params.table}/update API request for ${req.body.length} record${req.body.length === 1 ? '' : 's'}...`);
+      const data = await module.exports.processUpdates(req.body, tables.get(req.params.table));
       res.status(200).send(JSON.stringify(data));
     }
   }
