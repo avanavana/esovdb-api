@@ -6,7 +6,7 @@
 
 const fs = require('fs');
 
-/** @constant {number} [cacheInterval=300] - The duration, in seconds after which a cache file is considered stale (default: 300s = 5m) */
+/** @constant {number} cacheInterval - The duration, in seconds after which a cache file is considered stale (default: 300s = 5m) */
 let cacheInterval = 60 * 5;
 
 module.exports = {
@@ -18,7 +18,7 @@ module.exports = {
    *  @param {number} interval - The number of seconds to set the cache interval to
    */
   
-  setCacheInterval: interval => {
+  setCacheInterval: (interval) => {
     cacheInterval = interval;
   },
   
@@ -44,7 +44,7 @@ module.exports = {
 
     fs.writeFile(queryPath, JSON.stringify(data), (err) => {
       if (err) throw new Error(err);
-      else console.log('Cache write succeeded: ' + path);
+      else console.log(`Cache write succeeded: ${path}`);
     });
   },
   
@@ -62,8 +62,7 @@ module.exports = {
     
     if (fs.existsSync(path)) {
       const cachedTime = fs.statSync(path).ctime;
-      stale =
-        (new Date().getTime() - cachedTime) / 1000 > cacheInterval ? true : false;
+      stale = (new Date().getTime() - cachedTime) / 1000 > cacheInterval ? true : false;
     }
 
     return stale ? null : JSON.parse(fs.readFileSync(path, 'utf8'));
