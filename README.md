@@ -1,5 +1,5 @@
 # Airtable API Proxy
-Sets up a cache proxy server for querying the [Earth Science Online Video Database](http://www.esovdb.org), via the Airtable API, and provides methods for then back-syncing with a Zotero library (now available to the public [here](https://www.zotero.org/groups/2764885/esovdb/library)).  Also includes methods for syncing with Zotero directly from updates or new records in Airtable, which can be set up with Airtable's automation (see below).
+Sets up a cache proxy server for querying the [Earth Science Online Video Database](http://www.esovdb.org), via the Airtable API, and provides methods for then back-syncing with a Zotero library (now available to the public [here](https://www.zotero.org/groups/2764885/esovdb/library)).  Also includes methods for syncing with Zotero directly from updates or new records in Airtable, which can be set up with Airtable's automation (see below).  This implementation additionally posts new submissions from Airtable to a 'What's New' channel on the ESOVDB Discord using webhooks (https://discord.gg/hnyD7PCk).
 
 Built as the server-side of [avanavana/zotero-esovdb](https://github.com/avanavana/zotero-esovdb).
 
@@ -65,7 +65,7 @@ Updates one or more records on a specified `table` on Airtable (e.g. `/esovdb/vi
 Processes as many records as you give it in batches of 50, as Airtable requires, using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
 
 ### `POST` /zotero
-Adds items to a Zotero Library, 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically add items to the public ESOVDB Zotero library every time a new record is created in Airtable.  My implementation further back-syncs the newly created item in Zotero with the originating table in Airtable, so that each record in Airtable has a Zotero key and version that I can use to track updates later.  Additionally, the public ESOVDB library on Zotero contains topic and series subcollections, for each topic and series in the ESOVDB–these are automatically created when this endpoint is hit with a new series (the list of ESOVDB topics isn't changing), and videos with existing series get filed into their correct topic and series subcollections.
+Adds items to a Zotero Library, 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically add items to the public ESOVDB Zotero library every time a new record is created in Airtable.  Each successffully created record in Airtable is then processed with a message template and posted by webhook/bot on the ESOVDB Discord server. (https://discord.gg/hnyD7PCk) My implementation further back-syncs the newly created item in Zotero with the originating table in Airtable, so that each record in Airtable has a Zotero key and version that I can use to track updates later.  Additionally, the public ESOVDB library on Zotero contains topic and series subcollections, for each topic and series in the ESOVDB–these are automatically created when this endpoint is hit with a new series (the list of ESOVDB topics isn't changing), and videos with existing series get filed into their correct topic and series subcollections.
 
 **Sample Airtable Script for Automation**
 
@@ -88,6 +88,7 @@ if (data.status === 'active') {
         runningTime: data.runningTime,
         format: data.format,
         topic: data.topic,
+        tagsList: data.tags,
         learnMore: data.learnMore,
         series: data.series,
         seriesCount: data.seriesCount,
@@ -148,6 +149,7 @@ if (data.status === 'active') {
         runningTime: data.runningTime,
         format: data.format,
         topic: data.topic,
+        tagsList: data.tags,
         learnMore: data.learnMore,
         series: data.series,
         seriesCount: data.seriesCount,
