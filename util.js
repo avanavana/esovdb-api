@@ -21,6 +21,18 @@ module.exports = {
   },
   
   /**
+   *  Truncates a long string with ellipsis if longer than a provided limit
+   *
+   *  @function truncate
+   *  @param {string} string - The string to truncate
+   *  @param {number} limit - The number of characters after which truncation occurs
+   *  @returns {string} Same value as {@link string} if under the {@link limit}, or truncated version of {@link string} if over the {@link limit}
+   */
+  
+  truncate: (string, limit) =>
+    string.length <= limit ? string : string.slice(0, limit) + '…',
+  
+  /**
    *  Sequentially reduces the results of one or more asynchronous functions, accumulating their results, in order
    *
    *  @async
@@ -43,6 +55,22 @@ module.exports = {
 
     return res;
   },
+  
+  /**
+   *  Transforms an array of Zotero creators in a single byline string
+   *
+   *  @function stringifyCreators
+   *  @param {Object[]} creators - An array Zotero creator objects, which consist of a "creatorType" string and either a "name" string or "firstName" and "lastName" strings
+   *  @param {boolean} [fullName=true] - Whether or not a creator's full name should be used, or just their last name. (default: full name)
+   *  @returns {string} A byline combining all creators, separated by oxford comma rules
+   */
+  
+  stringifyCreators: (creators, fullName = true) => 
+    creators
+      .map((person) =>
+        fullName ? person.lastName ? `${person.firstName} ${person.lastName}` : person.name : person.lastName ? person.lastName : person.name)
+      .reduce((acc, name, i, arr) =>
+        `${acc}${arr.length > 2 ? i === arr.length - 1 ? ', and ' : ', ' : arr.length > 1 ? ' and ' : ' '}${name}`),
   
   /**
    *  Pads a string to a specified length with repeated specified string

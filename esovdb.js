@@ -52,15 +52,9 @@ module.exports = {
    */
   
   listVideos: (req, res) => {
-    req.params.pg =
-      !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 
-        ? null 
-        : +req.params.pg - 1;
+    req.params.pg = !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 ? null : +req.params.pg - 1;
     
-    if (
-      !req.query.pageSize ||
-      !Number(req.query.pageSize || req.query.pageSize > 100)
-    ) {
+    if (!req.query.pageSize || !Number(req.query.pageSize || req.query.pageSize > 100)) {
       req.query.pageSize = 100;
     }
     
@@ -95,10 +89,9 @@ module.exports = {
       createdAfterDate = new Date(createdAfter);
     }
     
-    let queryText =
-      req.params.pg !== null
-        ? `for page ${req.params.pg + 1} (${req.query.pageSize} results per page)`
-        : `(${req.query.pageSize} results per page, ${req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all'} results)`;
+    let queryText = req.params.pg !== null
+      ? `for page ${req.params.pg + 1} (${req.query.pageSize} results per page)`
+      : `(${req.query.pageSize} results per page, ${req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all'} results)`;
     
     queryText += modifiedAfterDate ? ', modified after ' + modifiedAfterDate.toLocaleString() : '';
     queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
@@ -244,15 +237,11 @@ module.exports = {
    */
   
   listYouTubeVideos: (req, res) => {
-    req.params.pg =
-      !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 
-        ? null 
-        : +req.params.pg - 1;
+    req.params.pg = !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 ? null : +req.params.pg - 1;
     
-    let queryText =
-      req.params.pg !== null
-        ? `for pages ${req.params.pg + 1}-${req.params.pg + 2}, 100 records per page`
-        : 'for all records, 100 at a time';
+    let queryText = req.params.pg !== null
+      ? `for pages ${req.params.pg + 1}-${req.params.pg + 2}, 100 records per page`
+      : 'for all records, 100 at a time';
     
     console.log(`Performing videos/youtube API request ${queryText}...`);
 

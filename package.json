@@ -1,6 +1,6 @@
 {
   "name": "airtable-api-proxy",
-  "version": "1.7.0",
+  "version": "2.0.3",
   "description": "Provides a cache proxy service for accessing the Earth Science Online Video Database.",
   "homepage": "https://airtable.com/shrFBKQwGjstk7TVn",
   "author": "Avana Vana <dear.avana@gmail.com> (http://www.avanavana.com)",
@@ -33,6 +33,8 @@
     "earth sciences",
     "earth science online video database",
     "geology",
-    "zotero"
+    "zotero",
+    "discord",
+    "webhook"
   ]
 }

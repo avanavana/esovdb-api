@@ -80,7 +80,7 @@ app.post('/esovdb/:table/update', [ middleware.validateReq, express.urlencoded({
 
 app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/create API request...`);
-  zotero.syncItems(req, res);
+  zotero.syncItems(req, res, 'create');
 });
 
 /**
@@ -91,7 +91,7 @@ app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: tru
 
 app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/update API request...`);
-  zotero.syncItems(req, res);
+  zotero.syncItems(req, res, 'update');
 });
 
 /**

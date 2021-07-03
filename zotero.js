@@ -8,6 +8,7 @@
 const dotenv = require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
+const webhook = require('./webhook');
 const { processUpdates } = require('./esovdb');
 const { sleep, queueAsync, formatDuration, formatDate, packageAuthors } = require('./util');
 
@@ -39,23 +40,25 @@ const collections = new Map([
 
 /** @constant {Map} topics - Maps ESOVDB topics to their collection keys in Zotero */
 // prettier-ignore
-const topics = new Map([['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', '5XQD67DA'],
-['Igneous & Metamorphic Petrology, Volcanism, & Hydrothermal Systems', 'L6JMIGTE'],
-['Alluvial, Pluvial & Terrestrial Sedimentology, Erosion & Weathering, Geomorphology, Karst, Groundwater & Provenance', 'BV7G3CIC'],
-['Early Earth, Life\'s Origins, Deep Biosphere, and the Formation of the Planet', '9DK53U7F'],
-['Geological Stories, News, Tours, & Field Trips', 'XDFHQTC3'],
-['History, Education, Careers, Field Work, Economic Geology, & Technology', 'M4NKIHBK'],
-['Glaciation, Atmospheric Science, Carbon Cycle, & Climate', 'AD997U4T'],
-['The Anthropocene', 'P2WNJD9N'],
-['Geo-Archaeology', 'UJDCHPB5'],
-['Paleoclimatology, Isotope Geochemistry, Radiometric Dating, Deep Time, & Snowball Earth', 'L4PLXHN8'],
-['Seafloor Spreading, Oceanography, Paleomagnetism, & Geodesy', 'NPDV3BHH'],
-['Tectonics, Terranes, Structural Geology, & Dynamic Topography', 'U3JYUDHI'],
-['Seismology, Mass Wasting, Tsunamis, & Natural Disasters', '63TE3Y26'],
-['Minerals, Mining & Resources, Crystallography, & Solid-state Chemistry', 'YY5W7DB8'],
-['Marine & Littoral Sedimentology, Sequence Stratigraphy, Carbonates, Evaporites, Coal, Petroleum, and Mud Volcanism', '37J3LYFL'],
-['Planetary Geology, Impact Events, Astronomy, & the Search for Extraterrestrial Life', 'HLV7WMZQ'],
-['Paleobiology, Mass Extinctions, Fossils, & Evolution', 'VYWX6R2B']]);
+const topics = new Map([
+  ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', '5XQD67DA'],
+  ['Igneous & Metamorphic Petrology, Volcanism, & Hydrothermal Systems', 'L6JMIGTE'],
+  ['Alluvial, Pluvial & Terrestrial Sedimentology, Erosion & Weathering, Geomorphology, Karst, Groundwater & Provenance', 'BV7G3CIC'],
+  ['Early Earth, Life\'s Origins, Deep Biosphere, and the Formation of the Planet', '9DK53U7F'],
+  ['Geological Stories, News, Tours, & Field Trips', 'XDFHQTC3'],
+  ['History, Education, Careers, Field Work, Economic Geology, & Technology', 'M4NKIHBK'],
+  ['Glaciation, Atmospheric Science, Carbon Cycle, & Climate', 'AD997U4T'],
+  ['The Anthropocene', 'P2WNJD9N'],
+  ['Geo-Archaeology', 'UJDCHPB5'],
+  ['Paleoclimatology, Isotope Geochemistry, Radiometric Dating, Deep Time, & Snowball Earth', 'L4PLXHN8'],
+  ['Seafloor Spreading, Oceanography, Paleomagnetism, & Geodesy', 'NPDV3BHH'],
+  ['Tectonics, Terranes, Structural Geology, & Dynamic Topography', 'U3JYUDHI'],
+  ['Seismology, Mass Wasting, Tsunamis, & Natural Disasters', '63TE3Y26'],
+  ['Minerals, Mining & Resources, Crystallography, & Solid-state Chemistry', 'YY5W7DB8'],
+  ['Marine & Littoral Sedimentology, Sequence Stratigraphy, Carbonates, Evaporites, Coal, Petroleum, and Mud Volcanism', '37J3LYFL'],
+  ['Planetary Geology, Impact Events, Astronomy, & the Search for Extraterrestrial Life', 'HLV7WMZQ'],
+  ['Paleobiology, Mass Extinctions, Fossils, & Evolution', 'VYWX6R2B']
+]);
 
 /** @constant {number} zoteroRateLimit - Time in seconds to wait between requests to the Zotero API to avoid rate-limiting */
 const zoteroRateLimit = 10;
@@ -101,15 +104,13 @@ const updateTable = async (items, table) => {
 const getTemplate = async () => {
   console.log('Retrieving template from Zotero...');
   try {
-    const response = await zotero.get('items/new', {
-      params: { itemType: 'videoRecording' },
-    });
+    const response = await zotero.get('items/new', { params: { itemType: 'videoRecording' } });
 
     if (response.data) {
       console.log('› Successfully retrieved template from Zotero.');
       return response.data;
     } else {
-      throw new Error('[ERROR] Couldn\'t retrieve template from Zotero.');
+      throw new Error(`[ERROR] Couldn't retrieve template from Zotero.`);
     }
   } catch (err) {
     console.error(err.message);
@@ -139,7 +140,6 @@ const getTemplate = async () => {
 const postItems = async (items) => {
   try {
     const response = await zoteroLibrary.post('items', items);
-    
     const successful = Object.values(response.data.successful);
     const unchanged = Object.values(response.data.unchanged);
     const failed = Object.values(response.data.failed);
@@ -211,10 +211,9 @@ const createCollection = async (name, parent) => {
 
 const formatItems = async (video, template) => {
   let extras = [];
-  
   video.presenters = packageAuthors(video.presentersFirstName, video.presentersLastName);
-
   if (video.topic) extras.push({ title: 'Topic', value: video.topic });
+  if (video.tagsList) extras.push({ title: 'Tags', value: video.tagsList });
   if (video.location) extras.push({ title: 'Location', value: video.location });
   if (video.plusCode) extras.push({ title: 'Plus Code', value: video.plusCode });
   if (video.learnMore) extras.push({ title: 'Learn More', value: video.learnMore });
@@ -282,13 +281,13 @@ const formatItems = async (video, template) => {
         if (data.success && Object.values(data.success).length > 0) {
           console.log(`› Successfully created collection "${video.series}" under "Series".`)
           payload.collections.push(data.success[0]);
-          const updateSeriesResponse = await updateTable([{ id: video.seriesId, fields: { 'Zotero Collection': data.success[0] } }], 'Series');
+          const updateSeriesResponse = await updateTable([{ id: video.seriesId, fields: { 'Zotero Key': data.success[0] } }], 'Series');
           
           if (updateSeriesResponse && updateSeriesResponse.length > 0) {
             console.log('› Successfully synced series collection key with the ESOVDB.');
           } else {
             throw new Error('[ERROR] Failed to sync series collection key with the ESOVDB');
-          }
+         } 
         } else {
           const message = data.failed.length > 1 && data.failed[0].message ? data.failed[0].message : '';
           throw new Error(`[ERROR] Failed to create series collection${message ? ' (' + message + ')' : ''}.`);
@@ -314,7 +313,7 @@ module.exports = {
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
    */
   
-  syncItems: async (req, res) => {
+  syncItems: async (req, res, operation) => {
     try {
       const videos = Array.isArray(req.body) ? req.body : Array.of(req.body);
       const template = await getTemplate();
@@ -342,20 +341,15 @@ module.exports = {
         );
 
         let { successful, unchanged, failed } = await postItems(items.splice(0, 50));
-
         if (successful.length > 0) posted = [ ...posted, ...successful ];
-
         totalSuccessful += successful.length;
         totalUnchanged += unchanged.length;
         totalFailed += failed.length;
-
         if (items.length > 50) await sleep(zoteroRateLimit);
-
         i++;
       }
 
       console.log('Zotero response summary:');
-
       if (totalSuccessful > 0) console.log(`› [${totalSuccessful}] item${totalSuccessful === 1 ? '' : 's'} total added or updated.`);
       if (totalUnchanged > 0) console.log(`› [${totalUnchanged}] item${totalUnchanged === 1 ? '' : 's'} total left unchanged.`);
       if (totalFailed > 0) console.log(`› [${totalFailed}] item${totalFailed === 1 ? '' : 's'} total failed to add or update.`);
@@ -368,6 +362,19 @@ module.exports = {
             'Zotero Version': item.version,
           }
         }));
+        
+        if (operation === 'create') {
+          console.log('Posting new items to Discord in the #whats-new channel...');
+          const discord = await queueAsync(posted.map((item) => async () => { 
+            const res = webhook.execute(item.data, 'discord', 'newSubmission')
+            if (posted.length > 30) sleep(2);
+            return res;
+          }));
+          
+          if (discord && discord.length > 0) {
+            console.log(`› [${discord.length}] item${discord.length === 1 ? '' : 's'} successfully posted to Discord in #whats-new.`);
+          }
+        }
 
         const updated = await updateTable(itemsToSync, 'Videos');
 
