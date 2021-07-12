@@ -23,23 +23,23 @@ const regexLearnMore = /Learn More:\s(.*)\n?/;
 
 /** @constant {Map} topicMetadata - Maps topic names from the ESOVDB to their ESOVDB hex colors and Discord channel equivalents */
 const topicMetadata = new Map([
-  ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', { 'color': 'fee2d5', 'channel': 'mantle-and-geodynamics' }],
-  ['Igneous & Metamorphic Petrology, Volcanism, & Hydrothermal Systems', { 'color': 'ffdce5', 'channel': 'volcanism-and-petrology' }],
-  ['Alluvial, Pluvial & Terrestrial Sedimentology, Erosion & Weathering, Geomorphology, Karst, Groundwater & Provenance', { 'color': 'c2f5e9', 'channel': 'sedimentology' }],
-  ['Early Earth, Life\'s Origins, Deep Biosphere, and the Formation of the Planet', { 'color': 'd1f7c4', 'channel': 'origins-of-life-and-earth' }],
-  ['Geological Stories, News, Tours, & Field Trips', { 'color': 'ffeab6', 'channel': 'field-trips-and-stories' }],
-  ['History, Education, Careers, Field Work, Economic Geology, & Technology', { 'color': 'eeeeee', 'channel': 'the-profession' }],
-  ['Glaciation, Atmospheric Science, Carbon Cycle, & Climate', { 'color': 'd0f0fd', 'channel': 'climate-and-atmosphere' }],
-  ['The Anthropocene', { 'color': 'eeeeee', 'channel': 'anthropocene' }],
-  ['Geo-Archaeology', { 'color': 'eeeeee', 'channel': 'geo-archaeology' }],
-  ['Paleoclimatology, Isotope Geochemistry, Radiometric Dating, Deep Time, & Snowball Earth', { 'color': 'd0f0fd', 'channel': 'geochemistry-and-dating' }],
-  ['Seafloor Spreading, Oceanography, Paleomagnetism, & Geodesy', { 'color': 'cfdfff', 'channel': 'oceanography' }],
-  ['Tectonics, Terranes, Structural Geology, & Dynamic Topography', { 'color': 'ffeab6', 'channel': 'tectonics-and-terranes' }],
-  ['Seismology, Mass Wasting, Tsunamis, & Natural Disasters', { 'color': 'ffdaf6', 'channel': 'seismology-and-hazards' }],
-  ['Minerals, Mining & Resources, Crystallography, & Solid-state Chemistry', { 'color': 'ffdce5', 'channel': 'mining-and-minerals' }],
-  ['Marine & Littoral Sedimentology, Sequence Stratigraphy, Carbonates, Evaporites, Coal, Petroleum, and Mud Volcanism', { 'color': 'c2f5e9', 'channel': 'sedimentology' }],
-  ['Planetary Geology, Impact Events, Astronomy, & the Search for Extraterrestrial Life', { 'color': 'ede2fe', 'channel': 'impacts-and-planetary-geology' }],
-  ['Paleobiology, Mass Extinctions, Fossils, & Evolution', { 'color': 'd1f7c4', 'channel': 'paleobiology' }]
+  ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', { 'color': 'fee2d5', 'channel': 'mantle-and-geodynamics', 'channelId': '857085147672346644' }],
+  ['Igneous & Metamorphic Petrology, Volcanism, & Hydrothermal Systems', { 'color': 'ffdce5', 'channel': 'volcanism-and-petrology', 'channelId': '857085297983356938' }],
+  ['Alluvial, Pluvial & Terrestrial Sedimentology, Erosion & Weathering, Geomorphology, Karst, Groundwater & Provenance', { 'color': 'c2f5e9', 'channel': 'geomorphology-and-erosion', 'channelId': '857085806107426866' }],
+  ['Early Earth, Life\'s Origins, Deep Biosphere, and the Formation of the Planet', { 'color': 'd1f7c4', 'channel': 'origins-of-life-and-earth', 'channelId': '857086998623027250' }],
+  ['Geological Stories, News, Tours, & Field Trips', { 'color': 'ffeab6', 'channel': 'field-trips-and-stories', 'channelId': '857086207314231327' }],
+  ['History, Education, Careers, Field Work, Economic Geology, & Technology', { 'color': 'eeeeee', 'channel': 'the-profession', 'channelId': '857085834083172363' }],
+  ['Glaciation, Atmospheric Science, Carbon Cycle, & Climate', { 'color': 'd0f0fd', 'channel': 'climate-and-atmosphere', 'channelId': '857085725371269152' }],
+  ['The Anthropocene', { 'color': 'eeeeee', 'channel': 'anthropocene', 'channelId': '857085987032006716' }],
+  ['Geo-Archaeology', { 'color': 'eeeeee', 'channel': 'geo-archaeology', 'channelId': '857086136273731645' }],
+  ['Paleoclimatology, Isotope Geochemistry, Radiometric Dating, Deep Time, & Snowball Earth', { 'color': 'd0f0fd', 'channel': 'geochemistry-and-dating', 'channelId': '857086563782361088' }],
+  ['Seafloor Spreading, Oceanography, Paleomagnetism, & Geodesy', { 'color': 'cfdfff', 'channel': 'oceanography', 'channelId': '857087290371342367' }],
+  ['Tectonics, Terranes, Structural Geology, & Dynamic Topography', { 'color': 'ffeab6', 'channel': 'tectonics-and-terranes', 'channelId': '857085147458568242' }],
+  ['Seismology, Mass Wasting, Tsunamis, & Natural Disasters', { 'color': 'ffdaf6', 'channel': 'seismology-and-hazards', 'channelId': '857087143447625729' }],
+  ['Minerals, Mining & Resources, Crystallography, & Solid-state Chemistry', { 'color': 'ffdce5', 'channel': 'mining-and-minerals', 'channelId': '857086038924460032' }],
+  ['Marine & Littoral Sedimentology, Sequence Stratigraphy, Carbonates, Evaporites, Coal, Petroleum, and Mud Volcanism', { 'color': 'c2f5e9', 'channel': 'sedimentology', 'channelId': '857085476656906271' }],
+  ['Planetary Geology, Impact Events, Astronomy, & the Search for Extraterrestrial Life', { 'color': 'ede2fe', 'channel': 'impacts-and-planetary-geology', 'channelId': '857086397218160672' }],
+  ['Paleobiology, Mass Extinctions, Fossils, & Evolution', { 'color': 'd1f7c4', 'channel': 'paleobiology', 'channelId': '857086454772269066' }]
 ]);
 
 /** @constant {Map} webhook - Maps a given webhook provider to an object containing an axios instance and a set of endpoints with action identifiers */
@@ -77,7 +77,7 @@ const message = (payload, provider, action) => {
       return { 'content': payload === 1 ? 'New submission:' : `${payload} new submissions:` };
     case 'discord-newSubmission':
       const draft = {
-        'content': `New submission on the Earth Science Online Video Database! #${topicMetadata.get(payload.extra.match(regexTopic)[1]).channel}`,
+        'content': `New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`,
         'embeds': [
           {
             'title': `${payload.title} (${payload.date}) [${payload.runningTime}]`,
