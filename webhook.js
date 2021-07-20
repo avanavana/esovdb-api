@@ -81,13 +81,13 @@ const message = (payload, provider, action) => {
         'embeds': [
           {
             'title': `${payload.title} (${payload.date}) [${payload.runningTime}]`,
-            'url': payload.archiveLocation,
+            'url': payload.url,
             'color': regexTopic.test(payload.extra) ? parseInt(topicMetadata.get(payload.extra.match(regexTopic)[1]).color, 16) : parseInt('eeeeee', 16),
             'author': {
               'name': payload.videoRecordingFormat || 'Video'
             },
             'footer': {
-              'text': payload.url + ' - ' + payload.callNumber
+              'text': `${payload.archiveLocation} (ID: ${payload.callNumber})`
             },
             'fields': [
               {
