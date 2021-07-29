@@ -3,7 +3,7 @@ Sets up a cache proxy server for querying the [Earth Science Online Video Databa
 
 Built as the server-side of [avanavana/zotero-esovdb](https://github.com/avanavana/zotero-esovdb).
 
-Forked from [daniloc/airtable-api-proxy](https://github.com/daniloc/airtable-api-proxy). I refactored this pretty heavilly to tailor it to the ESOVDB's needs, but you can clone or fork this for a quick start on your own Airtable API cache proxy.
+Forked from [daniloc/airtable-api-proxy](https://github.com/daniloc/airtable-api-proxy). I refactored this pretty heavily to tailor it to the ESOVDB's needs, but you can clone or fork this for a quick start on your own Airtable API cache proxy.
 
 BYODOTENV with your Airtable API key and base ID, and adapt to your own fields, and Zotero Key and User if you also need a proxy server for the Zotero API (my implementation doesn't need caching as it's all create or update actions, but adding caching is trivial as the cache module included is built to work with any endpoint provided). See the `sample.env` file provided, replace with your data, and rename to `.env`.
 
