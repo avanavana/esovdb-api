@@ -7,7 +7,7 @@
 const dotenv = require('dotenv').config();
 const express = require('express');
 const cleanUp = require('node-cleanup');
-const { patternsToRegEx } = require('./util');
+const { appReady, patternsToRegEx } = require('./util');
 const esovdb = require('./esovdb');
 const zotero = require('./zotero');
 
@@ -39,6 +39,11 @@ const middleware = {
       console.log(`[${d.toLocaleString()}] (${ip})\nAccess granted.`);
       next();
     }
+  },
+  
+  allowCORS: (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    next();
   }
 }
 
@@ -115,6 +120,13 @@ app.get('/*', (req, res) => {
 const listener = app.listen(3000, '0.0.0.0', () => {
   console.log('API proxy listening on port ' + listener.address().port);
 });
+
+/**
+ *  Instance of appReady, for graceful startup of server with PM2, etc.
+ *  @requires util
+ */
+
+appReady();
 
 /**
  *  Instance of node-cleanup, for graceful shutdown of server.

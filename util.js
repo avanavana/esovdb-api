@@ -284,4 +284,14 @@ module.exports = {
         .replace(/\*/g, '\\b(?:1\\d{2}|2[0-4]\\d|[1-9]?\\d|25[0-5])\\b'))
       .join('|')})`),
   
+  /**
+   *  Allows for graceful start of server with PM2, etc.
+   *
+   *  @method appReady
+   */
+
+  appReady: () => {
+    if (typeof process.send === 'function') process.send('ready');
+  }
+  
 }
