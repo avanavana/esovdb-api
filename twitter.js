@@ -18,6 +18,9 @@ const twitter = new TwitterApi({
 /** @constant {string} boilerplate - Text to include at the end of every tweet, regardless of method */
 const boilerplate = `See what's new at www.esovdb.org! #esovdb #esovdbsubmissions #earthscience #geology`;
 
+/** @constant {RegExp} regexTopic - Regular expression for matching and extracting an ESOVDB topic from a mixed Zotero 'extras' field */
+const regexTopic = /Topic:\s(.*)\n?/;
+
 /** @constant {Map} topicHashtags - ESOVDB topics mapped to hashtags to be automatically included on tweets for single video additions to the ESOVDB */
 const topicHashtags = new Map([
   ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', '#mantle #geodynamics'],
@@ -47,7 +50,7 @@ const topicHashtags = new Map([
  *  @returns {string} Tweet text for a single item added to the ESOVDB
  */
 
-const formatTweet = (item) => `New submission! Just added "${item.title}" ${item.url} (${item.runningTime}) to the ESOVDB. ${boilerplate} ${topicHashtags.get(item.topic)}`;
+const formatTweet = (item) => `New submission! Just added "${item.title}" ${item.url} (${item.runningTime}) to the ESOVDB. ${boilerplate} ${topicHashtags.get(item.extra.match(regexTopic)[1])}`;
 
 module.exports = {
   
