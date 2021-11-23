@@ -16,7 +16,7 @@ const twitter = new TwitterApi({
 });
 
 /** @constant {string} boilerplate - Text to include at the end of every tweet, regardless of method */
-const boilerpalte = `See what's new at www.esovdb.org! #esovdb #esovdb-submissions #earthscience #geology`;
+const boilerplate = `See what's new at www.esovdb.org! #esovdb #esovdb-submissions #earthscience #geology`;
 
 /** @constant {Map} topicHashtags - ESOVDB topics mapped to hashtags to be automatically included on tweets for single video additions to the ESOVDB */
 const topicHashtags = new Map([
