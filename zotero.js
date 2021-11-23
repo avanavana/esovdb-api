@@ -9,6 +9,7 @@ const dotenv = require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
 const webhook = require('./webhook');
+const twitter = require('./twitter');
 const { processUpdates } = require('./esovdb');
 const { sleep, queueAsync, formatDuration, formatDate, packageAuthors } = require('./util');
 
@@ -365,7 +366,7 @@ module.exports = {
         
         if (operation === 'create') {
           console.log('Posting new items to Discord in the #whats-new channel...');
-          const discord = await queueAsync(posted.map((item) => async () => { 
+          const discord = await queueAsync(posted.map((item) => async () => {
             const res = webhook.execute(item.data, 'discord', 'newSubmission')
             if (posted.length > 30) sleep(2);
             return res;
@@ -374,6 +375,17 @@ module.exports = {
           if (discord && discord.length > 0) {
             console.log(`› [${discord.length}] item${discord.length === 1 ? '' : 's'} successfully posted to Discord in #whats-new.`);
           }
+          
+          console.log('Tweeting new items from @esovdb...');
+          let tweet;
+            
+          if (posted.length > 1) {
+            tweet = await twitter.batchTweet(posted);
+          } else {
+            tweet = await twitter.tweet(posted[0]);
+          }
+          
+          if (tweet && tweet.id) console.log(`› Successfully tweeted from @esovdb.`);
         }
 
         const updated = await updateTable(itemsToSync, 'Videos');
