@@ -382,7 +382,7 @@ module.exports = {
           if (posted.length > 1) {
             tweet = await twitter.batchTweet(posted);
           } else {
-            tweet = await twitter.tweet(posted[0]);
+            tweet = await twitter.tweet(posted[0].data);
           }
           
           if (tweet && tweet.id) console.log(`› Successfully tweeted from @esovdb.`);
