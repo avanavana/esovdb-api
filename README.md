@@ -1,5 +1,5 @@
 # Airtable API Proxy
-Sets up a cache proxy server for querying the [Earth Science Online Video Database](http://www.esovdb.org), via the Airtable API, and provides methods for then back-syncing with a Zotero library (now available to the public [here](https://www.zotero.org/groups/2764885/esovdb/library)).  Also includes methods for syncing with Zotero directly from updates or new records in Airtable, which can be set up with Airtable's automation (see below).  This implementation additionally posts new submissions from Airtable to a 'What's New' channel on the ESOVDB Discord using webhooks (https://discord.gg/hnyD7PCk).
+Sets up a cache proxy server for querying the [Earth Science Online Video Database](http://www.esovdb.org), via the Airtable API, and provides methods for then back-syncing with a Zotero library (now available to the public [here](https://www.zotero.org/groups/2764885/esovdb/library)).  Also includes methods for syncing with Zotero directly from updates or new records in Airtable, which can be set up with Airtable's automation (see below).  This implementation additionally posts new submissions from Airtable to a 'What's New' channel on the [ESOVDB Discord](https://discord.gg/PNPYGZ54Ue) using webhooks and posts a new tweet from [@esovdb](https://www.twitter.com/esovdb).
 
 Built as the server-side of [avanavana/zotero-esovdb](https://github.com/avanavana/zotero-esovdb).
 
@@ -184,6 +184,9 @@ if (data.status === 'active') {
     }
 }
 ```
+Follow the ESOVDB for updates and new submissions:
+Twitter: [@esovdb](https://www.twitter.com/esovdb)
+Discord: [Join ESOVDB Server](https://discord.gg/PNPYGZ54Ue)
 
 MIT
 Copyright (c) 2020-2021 Avana Vana 
