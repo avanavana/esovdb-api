@@ -42,16 +42,6 @@ const topicHashtags = new Map([
   ['Paleobiology, Mass Extinctions, Fossils, & Evolution', '#paleontology #paleobiology']
 ]);
 
-/**
- *  Prepares text for a new tweet from ESODVB item data 
- *
- *  @function formatTweet
- *  @param {Object} item - ESOVDB item data on its way to Zotero
- *  @returns {string} Tweet text for a single item added to the ESOVDB
- */
-
-const formatTweet = (item) => `New submission! Just added "${item.title}" ${item.url} (${item.runningTime}) to the ESOVDB. ${boilerplate} ${topicHashtags.get(item.extra.match(regexTopic)[1])}`;
-
 module.exports = {
   
   /**
@@ -71,7 +61,7 @@ module.exports = {
    */
   
   tweet: async (item) => {
-    const { data } = await twitter.v2.post('tweets', { text: formatTweet(item) });
+    const { data } = await twitter.v2.post('tweets', { text: `New submission! Just added "${item.title}" ${item.url} (${item.runningTime}) to the ESOVDB. ${boilerplate} ${topicHashtags.get(item.extra.match(regexTopic)[1])}` });
     if (!data.id) throw new Error('[ERROR] Unable to post tweet.');
     return data;
   },
@@ -87,7 +77,8 @@ module.exports = {
    */
   
   batchTweet: async (items) => {
-    const { data } = await twitter.v2.post('tweets', { text: `Just added ${items.length} items to the ESOVDB. ${boilerplate}}` });
+    const item = items[Math.floor(Math.random() * items.length)];
+    const { data } = await twitter.v2.post('tweets', { text: `New submissions! Just added ${items.length} new items to the ESOVDB, including "${item.title}" ${item.url} (${item.runningTime}). ${boilerplate}} ${topicHashtags.get(item.extra.match(regexTopic)[1])}` });
     if (!data.id) throw new Error('[ERROR] Unable to post batch tweet.');
     return data;
   },
