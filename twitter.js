@@ -15,8 +15,10 @@ const twitter = new TwitterApi({
   accessSecret: process.env.TWITTER_ACCESS_SECRET,
 });
 
-const hashtags = '#esovdb #esovdb-submissions #earthscience #geology';
+/** @constant {string} boilerplate - Text to include at the end of every tweet, regardless of method */
+const boilerpalte = `See what's new at www.esovdb.org! #esovdb #esovdb-submissions #earthscience #geology`;
 
+/** @constant {Map} topicHashtags - ESOVDB topics mapped to hashtags to be automatically included on tweets for single video additions to the ESOVDB */
 const topicHashtags = new Map([
   ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', '#mantle #geodynamics'],
   ['Igneous & Metamorphic Petrology, Volcanism, & Hydrothermal Systems', '#volcanology #petrology'],
@@ -45,7 +47,7 @@ const topicHashtags = new Map([
  *  @returns {string} Tweet text for a single item added to the ESOVDB
  */
 
-const formatTweet = (item) => `New submission! Just added "${item.title}" ${item.url} (${item.duration}) to the ESOVDB, see what's new at www.esovdb.org! ${hashtags} ${topicHashtags.get(item.topic)}`;
+const formatTweet = (item) => `New submission! Just added "${item.title}" ${item.url} (${item.duration}) to the ESOVDB. ${boilerplate} ${topicHashtags.get(item.topic)}`;
 
 module.exports = {
   
@@ -82,8 +84,9 @@ module.exports = {
    */
   
   batchTweet: async (items) => {
-    const { data } = await twitter.v2.post('tweets', { text: `Just added ${items.length} items to the ESOVDB, see what's new at www.esovdb.org! ${hashtags}` });
+    const { data } = await twitter.v2.post('tweets', { text: `Just added ${items.length} items to the ESOVDB. ${boilerplate}}` });
     if (!data.id) throw new Error('[ERROR] Unable to post batch tweet.');
     return data;
   },
+  
 }
