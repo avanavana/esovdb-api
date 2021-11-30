@@ -190,7 +190,7 @@ module.exports = {
    *  @returns {Object[]} An array of author objects, with keys for first and last name
    *
    *  @example
-   *  // returns [{ firstName: 'John C.', lastName: 'Smith' }, { firstName: 'F.', lastName: 'Johnson' }, { firstName: 'Marjorie', lastName: 'Marjorie García-Gamboa' }]
+   *  // returns [{ firstName: 'John C.', lastName: 'Smith' }, { firstName: 'F.', lastName: 'Johnson' }, { firstName: 'Marjorie', lastName: 'García-Gamboa' }]
    *  formatAuthors(['John C.', 'F.', 'Marjorie'], ['Smith', 'Johnson', 'García-Gamboa']);
    */
   
