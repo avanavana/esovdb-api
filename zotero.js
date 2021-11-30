@@ -257,7 +257,7 @@ const formatItems = async (video, template) => {
     videoRecordingFormat: video.format || '',
     seriesTitle: video.series || '',
     volume: video.vol ? `${video.vol || ''}:${video.no || ''}` : video.no || '',
-    numberOfVolumes: video.seriesCount > 1 ? video.seriesCount : '',
+    numberOfVolumes: +video.seriesCount > 1 ? video.seriesCount : '',
     place: video.provider || '',
     studio: video.publisher || '',
     date: video.year || '',
