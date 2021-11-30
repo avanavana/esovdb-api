@@ -426,6 +426,7 @@ const observer = {
     next: ([req, res]) => { 
       if (tempBatchItem.length > 0) {
         batch.append(tempBatchItem);
+        console.log(`› Added item ${batch.size()} to batch.`);
         res.status(200).send(tempBatchItem);
       }
       
@@ -437,7 +438,9 @@ const observer = {
     err: err => { console.error(err) },
     complete: async () => {
       batch.append(tempBatchItem);
+      console.log(`› Added item ${batch.size()} to batch.`);
       await processItems(batch.get(), lastResponse, 'update', true);
+      console.log(`› Successfully batch processed ${batch.size()} items.`);
       batch.clear();
       clearTimeout(timer);
     }
@@ -468,19 +471,24 @@ module.exports = {
       switch (operation) {
         case 'create':
           if (videos[0].batch && videos[0].batchSize > 1) {
+            batch.size() === 0 && console.log(`Processing batch create request of ${videos[0].batchSize} items…`);
             const data = batch.append(videos);
-
-            if (batch.size() >= videos[0].batchSize) {
+            console.log(`› Added item ${data.length} of ${videos[0].batchSize} to batch.`);
+            if (batch.size() >= videos[0].batchSize) { 
               batch.clear();
               await processItems(data, res, operation, true);
+              console.log(`› Successfully batch processed ${videos[0].batchSize} items.`);
             } else {
               return res.status(202).send(data);
             }
           } else {
+            console.log(`Processing single create item request…`);
             await processItems(videos, res, operation);
+            console.log(`› Successfully processed the new item.`);
           }
           break;
         case 'update':
+          console.log(`Processing update item request (length unknown)…`);
           stream.next([ req, res ]);
           break;
         default:
