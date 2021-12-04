@@ -7,9 +7,13 @@ logs
 
 # Cache
 .cache
+.tmp
 
 # Debugging data
 failed.json
+
+# Redis
+redis-stable
 
 # Runtime data
 pids
