@@ -6,12 +6,16 @@
 
 const dotenv = require('dotenv').config();
 const express = require('express');
+const { createClient } = require('redis');
 const cleanUp = require('node-cleanup');
 const { appReady, patternsToRegEx } = require('./util');
 const esovdb = require('./esovdb');
 const zotero = require('./zotero');
 
 const app = express();
+
+const db = createClient();
+db.on('error', (err) => console.log(`[Error] Couldn't connect to Redis.`, err));
 
 const middleware = {
   
@@ -85,18 +89,19 @@ app.post('/esovdb/:table/update', [ middleware.validateReq, express.urlencoded({
 
 app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/create API request...`);
-  zotero.syncItems(req, res, 'create');
+  zotero.syncItems(req, res, db, 'create');
 });
 
 /**
  *  API PUT endpoint for ESOVDB video.onUpdateRecord automation
  *  @requires zotero
+ *  @requires redis
  *  @callback zotero.syncItems
  */
 
 app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/update API request...`);
-  zotero.syncItems(req, res, 'update');
+  zotero.syncItems(req, res, db, 'update');
 });
 
 /**
@@ -117,7 +122,8 @@ app.get('/*', (req, res) => {
  *  @callback - Logs the start of the server session and port on which the server is listening.
  */
 
-const listener = app.listen(3000, '0.0.0.0', () => {
+const listener = app.listen(3000, '0.0.0.0', async () => {
+  await db.connect();
   console.log('API proxy listening on port ' + listener.address().port);
 });
 
@@ -133,4 +139,6 @@ appReady();
  *  @requires node-cleanup
  */
 
-cleanUp();
+cleanUp(async (code, signal) => {
+  await db.quit();
+});

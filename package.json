@@ -16,6 +16,7 @@
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "node-cleanup": "^2.1.2",
+    "redis": "^4.0.0",
     "rxjs": "^7.4.0",
     "twitter-api-v2": "^1.6.5"
   },

@@ -19,7 +19,7 @@ const webhook = require('./webhook');
 const twitter = require('./twitter');
 const batch = require('./batch');
 const { processUpdates } = require('./esovdb');
-const { sleep, queueAsync, formatDuration, formatDate, packageAuthors } = require('./util');
+const { sleep, queueAsync, formatDuration, formatDate, packageAuthors, sortDates } = require('./util');
 
 const zoteroHeaders = {
   Authorization: 'Bearer ' + process.env.ZOTERO_API_KEY,
@@ -320,14 +320,13 @@ const formatItems = async (video, template) => {
  *
  *  @async
  *  @method processItems
- *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
- *  @param {(Object|Object[])} req.body - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
+ *  @param {(Object|Object[])} videos - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
+ *  @param {('create'|'update)} op - String representation of the current batch operation 
  *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
- *  @param {Boolean} [isBatch=false] - Whether or not the item being processed is part of a batch or not
  *  @sideEffects Formats new or updated items to be compatible with Zotero, posts them to Zotero, and then tweets and sends a message on Discord if data represents one or more new items
  */
 
-const processItems = async (videos, res, operation, isBatch=false) => {
+const processItems = async (videos, op, res = null) => {
   const template = await getTemplate();
   let items = await queueAsync(videos.map((video) => () => formatItems(video, template)));
 
@@ -375,12 +374,12 @@ const processItems = async (videos, res, operation, isBatch=false) => {
       }
     }));
 
-    if (operation === 'create') {
+    if (op === 'create') {
       console.log('Posting new items to Discord in the #whats-new channel...');
       const discord = await queueAsync(posted.map((item) => async () => {
-        const res = webhook.execute(item.data, 'discord', 'newSubmission')
+        const result = webhook.execute(item.data, 'discord', 'newSubmission')
         if (posted.length > 30) sleep(2);
-        return res;
+        return result;
       }));
 
       if (discord && discord.length > 0) {
@@ -403,17 +402,17 @@ const processItems = async (videos, res, operation, isBatch=false) => {
 
     if (updated && updated.length > 0) {
       console.log(`› [${updated.length}] item${updated.length === 1 ? '\'s' : 's\''} Zotero key and version synced with the ESOVDB.`);
-      res.status(200).send(JSON.stringify(updated));
+      if (res) res.status(200).send(JSON.stringify(updated));
     } else {
-      res.status(404).send('Unable to sync Zotero updates with the ESOVDB.');
+      if (res) res.status(404).send('Unable to sync Zotero updates with the ESOVDB.');
       throw new Error('[ERROR] Error syncing items with the ESOVBD.');
     }
   } else {
-    res.status(404).send('No items were posted to Zotero.');
+    if (res) res.status(404).send('No items were posted to Zotero.');
   }
 }
 
-let timer, lastResponse, tempBatchItem = [];
+let timer;
 
 /** @constant {Subject} stream - Multicast observable subject that emits on each http PUT request to '/zotero' */
 const stream = new Subject();
@@ -423,25 +422,19 @@ const onComplete$ = new Observable(subscriber => { subscriber.complete(); });
 
 /** @constant {Observer} observer - Observer class that subscribes to updates {@link stream} Observable generated from http PUT requests to '/zotero' */
 const observer = {
-    next: ([req, res]) => { 
-      if (tempBatchItem.length > 0) {
-        batch.append(tempBatchItem);
-        console.log(`› Added item ${batch.size()} to batch.`);
-        res.status(200).send(tempBatchItem);
-      }
-      
-      lastResponse = res;
-      tempBatchItem.splice(0, 1, req.body);
+    next: async ([req, res]) => {
+      const data = await batch.append(db, 'update', Array.of(req.body));
+      console.log(`› Added item ${data.length} to batch.`);
+      res.status(202).send(data);
       clearTimeout(timer);
-      timer = setTimeout(() => { onComplete$.subscribe(observer); }, batch.interval());
+      timer = setTimeout(() => { onComplete$.subscribe(observer); }, batch.interval()); 
     },
-    err: err => { console.error(err) },
+    err: (err) => { console.error(err) },
     complete: async () => {
-      batch.append(tempBatchItem);
-      console.log(`› Added item ${batch.size()} to batch.`);
-      await processItems(batch.get(), lastResponse, 'update', true);
-      console.log(`› Successfully batch processed ${batch.size()} items.`);
-      batch.clear();
+      const data = await batch.get(db, 'update');
+      await processItems(data.sort(sortDates), 'update');
+      console.log(`› Successfully batch processed ${data.length} items.`);
+      await batch.clear(db, 'update');
       clearTimeout(timer);
     }
 };
@@ -452,38 +445,43 @@ const subscription = stream.subscribe(observer);
 module.exports = {
   
   /**
-   *  Takes a single ESOVDB video object or an array of ESOVDB video objects from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero API endpoint, and then either processes it singularly or as a batch using the [batch]{@link batch} methods.
+   *  Takes a single ESOVDB video object or an array of ESOVDB video objects from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero API endpoint, and then either processes it singularly or uses Redis sets to create a batch of multiple items to be processed together.
    *
    *  @async
    *  @method syncItems
    *  @requires batch
    *  @requires rxjs
+   *  @requires redis
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {(Object|Object[])} req.body - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
-   *  @sideEffects Takes data received through the '/zotero' endpoint, creates in-memory batch of known size for created items, and using an Observable stream in the case of updates, and finally sends the batch to be processed using {@link processItems}
+   *  @param {RedisClient} client - The currently connected Redis client instance
+   *  @param {('create'|'update')} op - String representation of the current batch operation 
+   *  @sideEffects Takes data received through the '/zotero' endpoint, creates a Redis set for created items, and Observable stream that populates a Redis set within a time window for updated items, and finally sends the batch to be processed using {@link processItems}
    */
   
-  syncItems: async (req, res, operation) => {
+  syncItems: async (req, res, client, op) => {
     try {
       const videos = Array.isArray(req.body) ? req.body : Array.of(req.body);
       
-      switch (operation) {
+      switch (op) {
         case 'create':
           if (videos[0].batch && videos[0].batchSize > 1) {
-            batch.size() === 0 && console.log(`Processing batch create request of ${videos[0].batchSize} items…`);
-            const data = batch.append(videos);
+            let data = [];
+            data.length === 0 && console.log(`Processing batch create request of ${videos[0].batchSize} items…`);
+            data = await batch.append(client, op, videos);
             console.log(`› Added item ${data.length} of ${videos[0].batchSize} to batch.`);
-            if (batch.size() >= videos[0].batchSize) { 
-              batch.clear();
-              await processItems(data, res, operation, true);
+            
+            if (data.length >= videos[0].batchSize) { 
+              await batch.clear(client, op);
+              await processItems(data.sort(sortDates), op, res);
               console.log(`› Successfully batch processed ${videos[0].batchSize} items.`);
             } else {
               return res.status(202).send(data);
             }
           } else {
             console.log(`Processing single create item request…`);
-            await processItems(videos, res, operation);
+            await processItems(videos, op, res);
             console.log(`› Successfully processed the new item.`);
           }
           break;

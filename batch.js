@@ -1,15 +1,15 @@
 /**
- *  @file Batch Processing Module for ESOVDB Items
+ *  @file Batch Processing Module for ESOVDB Items using Redis to share batch state between PM2 cluster nodes
  *  @author Avana Vana <dear.avana@gmail.com>
+ *  @version 3.2.0
  *  @module batch
  */
 
-/** @constant {Map} batch - Data structure for storing sequential requests for eventual batch processing. */
-const batch = new Map([
-  [ 'size', 0 ],
-  [ 'content', [] ],
-  [ 'modifiedTime', 0 ]
-]);
+exports.defineTags = function(dictionary) {
+  dictionary.defineTag('sideEffects', {
+    mustNotHaveValue: true
+  });
+}
 
 /** @constant {number} batchInterval - The duration, in seconds after which the current [batch]{@link batch} data is considered stale (default: 10000ms = 10s) */
 const batchInterval = 10 * 1000;
@@ -17,53 +17,53 @@ const batchInterval = 10 * 1000;
 module.exports = {
   
   /**
-   *  Appends a video to the current batch [content]{@link batch.content} array, for batch processing
+   *  Appends a video to the current batch, as a Redis set item for batch processing
    *
+   *  @async
    *  @method append
+   *  @param {RedisClient} client - The currently connected Redis client instance
+   *  @param {('create'|'update')} op - String representation of the current batch operation 
    *  @param {Object[]} videos - The surrounding array that encapsulates a video object coming from Airtable (ESOVDB)
    *  @param {Object} videos.video - The video from Airtable (ESOVDB) to be appended to the current batch
-   *  @modifies {Map} batch - sets three key value pairs on the Map {@link batch}
-   *  @returns {Object[]} An array of all items in the current batch
+   *  @sideEffects Adds new batch data as redis set item under the redis key for the current batch
+   *  @returns {Object[]} An array of all items in the Redis set representing the current batch
    */
   
-  append: ([ video ]) => {
-    batch.set('size', batch.get('size') + 1);
-    batch.set('content', [ ...batch.get('content'), video ]);
-    batch.set('modifiedTime', new Date().getTime());
-    return batch.get('content');
+  append: async (client, op, [ video ]) => {
+    await client.sAdd(`batch:${op}`, JSON.stringify(video));
+    const data = await client.sMembers(`batch:${op}`);
+    return data.map((video) => JSON.parse(video));
   },
   
   /**
-   *  Re-initializes the [batch]{@link batch} Map to its original state, with size=0 and content=[]
+   *  Re-initializes the Redis key and set that will represent the next batch
    *
+   *  @async
    *  @method clear
-   *  @modifies {Map} batch - sets three key value pairs on the Map {@link batch}
+   *  @param {RedisClient} client - The currently connected Redis client instance
+   *  @param {('create'|'update')} op - String representation of the current batch operation 
+   *  @sideEffects Deletes Redis key for current batch
    */
   
-  clear: () => {
-    batch.set('size', 0);
-    batch.set('content', []);
-    batch.set('modifiedTime', 0);
+  clear: async (client, op) => {
+    console.log('cleaning up batch…');
+    await client.del(`batch:${op}`);
   },
   
   /**
-   *  Determines whether or not the current {@link batch} data is expired, based on the duration of {@link batchInterval}
+   *  Retrieves and returns all members of the Redis set representing the current batch
    *
-   *  @method isExpired
-   *  @param {number} [interval={@link batchInterval}] - The duration, in milliseconds,  kkskeeeeeeeeee
-   *  @returns {Boolean} Whether or not the current {@link batch} data is expired
-   */
-  
-  isExpired: (interval=batchInterval) => new Date().getTime() - batch.get('modifiedTime') > interval,
-  
-  /**
-   *  Retrieves the current state of the batch [content]{@link batch.content} array and returns it
-   *
+   *  @async
    *  @method get
+   *  @param {RedisClient} client - The currently connected Redis client instance
+   *  @param {('create'|'update')} op - String representation of the current batch operation 
    *  @returns {Object[]} An array of video objects for batch processing
    */
   
-  get: () => batch.get('content'),
+  get: async (client, op) => {
+    const data = await client.sMembers(`batch:${op}`);
+    return data.map((video) => JSON.parse(video));
+  },
   
   /**
    *  Retrieves the value of the const {@link batchInterval}
@@ -75,11 +75,14 @@ module.exports = {
   interval: () => batchInterval,
   
   /**
-   *  Retrieves the current length of the batch [content]{@link batch.content} array and returns it
+   *  Retrieves and returns the size of the current batch, or the cardinality of the Redis set representing the current batch
    *
+   *  @async
    *  @method size
-   *  @returns {number} The current length of the batch [content]{@link batch.content} array
+   *  @param {RedisClient} client - The currently connected Redis client instance
+   *  @param {('create'|'update')} op - String representation of the current batch operation 
+   *  @returns {number} The length of the current batch, or cardinality of the Redis set representing the current batch
    */
   
-  size: () => batch.get('size'),
+  size: async (client, op) => await client.sCard(`batch:${op}`)
 }

@@ -160,6 +160,18 @@ module.exports = {
   },
   
   /**
+   *  Takes dates formatted by Airtable and converts them to timestamps in order to compare them and sort in ascending (default) or descending order, meant to be passed to Array.sort()
+   * 
+   *  @method sortDates
+   *  @param {string} a - String representation of a date in Airtable's form "MMMM, d, YYYY h:mma" (e.g. "January 1, 2021 5:00am")
+   *  @param {string} b - String representation of a date in Airtable's form "MMMM, d, YYYY h:mma" (e.g. "January 1, 2021 5:00am")
+   *  @param {Boolean} [asc=true] - Whether or not the dates should be sorted in ascending (default) or descending order
+   *  @returns {(-1|1)} Returns -1 if ascending order and a is less than b, or if descending order and b is less than a, and 1 if ascending order and a is greater than b, or if descending order and b is greater than a
+   */
+  
+  sortDates: (a, b, asc = true) => Date.parse(a.modified.replace('/([am|pm])/', (p0, p1) => ' ' + p1)) < Date.parse(b.modified.replace('/([am|pm])/', (p0, p1) => ' ' + p1)) ? (asc ? -1 : 1) : (asc ? 1 : -1),
+  
+  /**
    *  Merges separate arrays for first and last names of authors into an array of full names of authors in a specified format
    *
    *  @deprecated Superseded by {@link packageAuthors}, since Zotero supports separate first and last name fields, but kept here for other future implementations
