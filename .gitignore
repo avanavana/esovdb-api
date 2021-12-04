@@ -14,6 +14,7 @@ failed.json
 
 # Redis
 redis-stable
+dump.rdb
 
 # Runtime data
 pids
