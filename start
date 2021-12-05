@@ -1,0 +1,12 @@
+#!/bin/bash
+[ ! -z "$(ps -ax | grep pm2 | grep -v grep)" ] && pm2 stop ~/workspace/server.js;
+[ ! -z "$(ps -ax | grep redis | grep -v grep)" ] && redis-cli shutdown;
+
+redis-server ~/workspace/redis-stable/redis.conf &
+
+if [[ `redis-cli ping` = 'PONG' ]]; then 
+  pm2 start ~/workspace/server.js -i 3 --wait-ready --listen-timeout 3000 --kill-timeout 6000
+else
+  echo "Redis server is not running."
+  exit 126
+fi

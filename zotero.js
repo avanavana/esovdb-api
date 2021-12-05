@@ -5,12 +5,6 @@
  *  @see [Zotero Web API 3.0 › Write Requests]{@link www.zotero.org/support/dev/web_api/v3/write_requests}
  */
 
-exports.defineTags = function(dictionary) {
-  dictionary.defineTag('sideEffects', {
-    mustNotHaveValue: true
-  });
-}
-
 const dotenv = require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
@@ -423,7 +417,7 @@ const onComplete$ = new Observable(subscriber => { subscriber.complete(); });
 /** @constant {Observer} observer - Observer class that subscribes to updates {@link stream} Observable generated from http PUT requests to '/zotero' */
 const observer = {
     next: async ([req, res]) => {
-      const data = await batch.append(db, 'update', Array.of(req.body));
+      const data = await batch.append('update', Array.of(req.body));
       console.log(`› Added item ${data.length} to batch.`);
       res.status(202).send(data);
       clearTimeout(timer);
@@ -431,10 +425,10 @@ const observer = {
     },
     err: (err) => { console.error(err) },
     complete: async () => {
-      const data = await batch.get(db, 'update');
+      const data = await batch.get('update');
       await processItems(data.sort(sortDates), 'update');
       console.log(`› Successfully batch processed ${data.length} items.`);
-      await batch.clear(db, 'update');
+      await batch.clear('update');
       clearTimeout(timer);
     }
 };
@@ -460,7 +454,7 @@ module.exports = {
    *  @sideEffects Takes data received through the '/zotero' endpoint, creates a Redis set for created items, and Observable stream that populates a Redis set within a time window for updated items, and finally sends the batch to be processed using {@link processItems}
    */
   
-  syncItems: async (req, res, client, op) => {
+  syncItems: async (req, res, op) => {
     try {
       const videos = Array.isArray(req.body) ? req.body : Array.of(req.body);
       
@@ -468,12 +462,12 @@ module.exports = {
         case 'create':
           if (videos[0].batch && videos[0].batchSize > 1) {
             let data = [];
-            data.length === 0 && console.log(`Processing batch create request of ${videos[0].batchSize} items…`);
-            data = await batch.append(client, op, videos);
+            await batch.size(op) === 0 && console.log(`Processing batch create request of ${videos[0].batchSize} items…`);
+            data = await batch.append(op, videos);
             console.log(`› Added item ${data.length} of ${videos[0].batchSize} to batch.`);
             
-            if (data.length >= videos[0].batchSize) { 
-              await batch.clear(client, op);
+            if (await batch.size(op) >= videos[0].batchSize) { 
+              await batch.clear(op);
               await processItems(data.sort(sortDates), op, res);
               console.log(`› Successfully batch processed ${videos[0].batchSize} items.`);
             } else {

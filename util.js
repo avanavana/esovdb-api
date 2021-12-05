@@ -304,6 +304,14 @@ module.exports = {
 
   appReady: () => {
     if (typeof process.send === 'function') process.send('ready');
+  },
+  
+  /** @method defineTags - Defines a new @sideEffects JSDoc tag for documenting functions with side effects */
+  
+  defineTags: (dict) => {
+    dict.defineTag('sideEffects', {
+      mustNotHaveValue: true
+    });
   }
   
 }

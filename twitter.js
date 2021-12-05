@@ -77,8 +77,9 @@ module.exports = {
    */
   
   batchTweet: async (items) => {
-    const item = items[Math.floor(Math.random() * items.length)];
-    const { data } = await twitter.v2.post('tweets', { text: `New submissions! Just added ${items.length} new items to the ESOVDB, including "${item.title}" ${item.url} (${item.runningTime}). ${boilerplate}} ${topicHashtags.get(item.extra.match(regexTopic)[1])}` });
+    const { data: item } = items[Math.floor(Math.random() * items.length)];
+    const tweet = `New submissions! Just added ${items.length} new items to the ESOVDB, including "${item.title}" ${item.url} (${item.runningTime}). ${boilerplate}} ${topicHashtags.get(item.extra.match(regexTopic)[1])}`;
+    const { data } = await twitter.v2.post('tweets', { text:  tweet.length > 280 ? tweet.substr(0, 279) + '…' : tweet });
     if (!data.id) throw new Error('[ERROR] Unable to post batch tweet.');
     return data;
   },

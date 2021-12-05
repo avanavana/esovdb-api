@@ -6,16 +6,13 @@
 
 const dotenv = require('dotenv').config();
 const express = require('express');
-const { createClient } = require('redis');
 const cleanUp = require('node-cleanup');
+const { db } = require('./batch');
 const { appReady, patternsToRegEx } = require('./util');
 const esovdb = require('./esovdb');
 const zotero = require('./zotero');
 
 const app = express();
-
-const db = createClient();
-db.on('error', (err) => console.log(`[Error] Couldn't connect to Redis.`, err));
 
 const middleware = {
   
@@ -89,7 +86,7 @@ app.post('/esovdb/:table/update', [ middleware.validateReq, express.urlencoded({
 
 app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/create API request...`);
-  zotero.syncItems(req, res, db, 'create');
+  zotero.syncItems(req, res, 'create');
 });
 
 /**
@@ -101,7 +98,7 @@ app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: tru
 
 app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/update API request...`);
-  zotero.syncItems(req, res, db, 'update');
+  zotero.syncItems(req, res, 'update');
 });
 
 /**
