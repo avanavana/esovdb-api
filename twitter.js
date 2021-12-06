@@ -57,6 +57,7 @@ module.exports = {
    *  @function tweet
    *  @param {Object} item - ESOVDB item data on its way to Zotero
    *  @returns {TweetResponse} Twitter tweet response (e.g. { id: '1463065751150112768', text: '[Test] Tweeting from node.js' })
+   *  @sideEffects Posts a single tweet to the @esovdb Twitter account, featuring a single video addition to the ESOVDB
    *  @throws Will throw an error if the response lacks an id, meaning nothing was tweeted
    */
   
@@ -73,6 +74,7 @@ module.exports = {
    *  @function batchTweet
    *  @param {Object[]} items - Array of ESOVDB item data on their way to Zotero
    *  @returns {TweetResponse} Twitter tweet response (e.g. { id: '1463065751150112768', text: '[Test] Tweeting from node.js' })
+   *  @sideEffects Posts a single tweet to the @esovdb Twitter account, announcing the addition to the ESOVDB of a batch of multiple videos, featuring a random video from the batch
    *  @throws Will throw an error if the response lacks an id, meaning nothing was tweeted
    */
   

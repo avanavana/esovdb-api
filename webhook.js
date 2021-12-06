@@ -60,9 +60,18 @@ const webhook = new Map([
     ]
 ]);
 
-const formatDiscordMessage = (title, item) => {
+/**
+ * (Re-)formats the various fields of an ESOVDB video, already formatted for, and coming from Zotero, into a webhook-friendly, rich Discord message with text, images, videos, and other embed fields.
+ *
+ *  @function itemToRichDiscord
+ *  @param {string} text - A text title that will become the textual message content 
+ *  @param {Object} item - An ESOVDB catalog item, formatted for (and coming from) Zotero, after sync
+ *  @returns {Object} A properly-formatted Discord message for use with webhooks, containing various embeds fields
+ */
+
+const itemToDiscord = (text, item) => {
   const draft = {
-    'content': title,
+    'content': text,
     'embeds': [
       {
         'title': `${item.title} (${item.date}) [${item.runningTime}]`,
@@ -94,23 +103,23 @@ const formatDiscordMessage = (title, item) => {
 }
 
 /**
- *  Uses formulae to construct a properly-formatted Discord message for use with webhooks, given a payload and a webhook provider and action identifier
+ *  Transforms any payload, for any webhook provider, with any action into a properly-formmatted message for that provider and action
  *
  *  @function message
- *  @param {*} payload - Data sent to the webhook, to be consumed by the message formula in constructing a discord message
+ *  @param {*} payload - Data sent to the webhook, to be consumed by provider- and action-specific case logic to construct a properly-formatted message
  *  @param {string} provider - An identifier for the service providing the webhook. (e.g. 'discord')
  *  @param {string} action - An identifier for the specific webhook to execute, from a given provider (e.g. 'newSubmission')
- *  @returns {Object} A properly-formatted Discord message for use with webhooks, containing various allowed fields
- *  @throws {TypeError} Will throw if function is missing arguments
+ *  @returns {Object} A properly-formatted message for use with the given webhook provider and action
+ *  @throws {TypeError} Will throw if no provider and action combination matches given case logic
  */
 
 const message = (payload, provider, action) => {
   switch (provider + '-' + action) {
     case 'discord-newSubmissionTotal':
       const { data: item } = payload[Math.floor(Math.random() * payload.length)];
-      return formatDiscordMessage(`${payload.length} new submissions, including: <#${topicMetadata.get(item.extra.match(regexTopic)[1]).channelId}>`, item);
+      return itemToDiscord(`${payload.length} new submissions, including: <#${topicMetadata.get(item.extra.match(regexTopic)[1]).channelId}>`, item);
     case 'discord-newSubmission':
-      return formatDiscordMessage(`New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`, payload);
+      return itemToDiscord(`New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`, payload);
     default:
       throw new Error('[ERROR] No provider or action given.');
     }
