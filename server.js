@@ -10,7 +10,7 @@ const cleanUp = require('node-cleanup');
 const { db, monitor } = require('./batch');
 const { appReady, patternsToRegEx } = require('./util');
 const esovdb = require('./esovdb');
-const { execute } = require('./webhook');
+const webhook = require('./webhook');
 const zotero = require('./zotero');
 
 const app = express();
