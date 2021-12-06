@@ -54,7 +54,8 @@ const webhook = new Map([
             }),
             endpoints: {
                 newSubmission: process.env.WEBHOOK_DISCORD_NEWSUBMISSION,
-                newSubmissionTotal: process.env.WEBHOOK_DISCORD_NEWSUBMISSIONTOTAL
+                newSubmissionTotal: process.env.WEBHOOK_DISCORD_NEWSUBMISSIONTOTAL,
+                userSubmission: process.env.WEBHOOK_DISCORD_USERSUBMISSION
             }
         }
     ]
@@ -120,6 +121,8 @@ const message = (payload, provider, action) => {
       return itemToDiscord(`${payload.length} new submissions, including: <#${topicMetadata.get(item.extra.match(regexTopic)[1]).channelId}>`, item);
     case 'discord-newSubmission':
       return itemToDiscord(`New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`, payload);
+    case 'discord-userSubmission':
+      return { content: `Submission received! Thanks for your contribution of "${payload.title}" to the ESOVDB!` };
     default:
       throw new Error('[ERROR] No provider or action given.');
     }

@@ -10,6 +10,7 @@ const cleanUp = require('node-cleanup');
 const { db, monitor } = require('./batch');
 const { appReady, patternsToRegEx } = require('./util');
 const esovdb = require('./esovdb');
+const { execute } = require('./webhook');
 const zotero = require('./zotero');
 
 const app = express();
@@ -99,6 +100,17 @@ app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: tru
 app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/update API request...`);
   zotero.syncItems(req, res, 'update');
+});
+
+/**
+ *  API POST endpoint for handling new submissions from the ESOVDB Discord #submissions channel
+ *  @requires webhook
+ *  @callback webhook.execute
+ */
+
+app.post('/discord', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
+  console.log(`Performing discord/userSubmission API request...`);
+  await webhook.execute(req.body, 'discord', 'userSubmission');
 });
 
 /**
