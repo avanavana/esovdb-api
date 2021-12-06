@@ -6,10 +6,13 @@
  */
 
 const { createClient } = require('redis');
+const cronitor = require('cronitor')(process.env.CRONITOR_API_KEY);
+
+const monitor = new cronitor.Monitor('api-server-telemetry');
 
 const db = createClient();
-db.on('error', (err) => console.log(`[Error] Couldn't connect to Redis.`, err));
-db.on('connect', () => console.log('Connected to Redis'));
+db.on('error', (err) => { monitor.ping({ state: 'fail', message: 'Unable to connect to Redis.' }); console.log(`[Error] Couldn't connect to Redis.`, err); });
+db.on('connect', () => { monitor.ping({ state: 'ok', message: 'Connected to Redis.' }); console.log('Connected to Redis'); });
 
 /** @constant {number} batchInterval - The duration, in seconds after which the current [batch]{@link batch} data is considered stale (default: 10000ms = 10s) */
 const batchInterval = 10 * 1000;
@@ -19,6 +22,10 @@ module.exports = {
   /** @constant {RedisClient} db - Exports a RedisClient instance */
   
   db,
+  
+  /** @constant {CronitorMonitor} monitor - Exports a Cronitor Monitor instance for recording telemetry events */
+  
+  monitor,
   
   /**
    *  Appends a video to the current batch, as a Redis set item for batch processing

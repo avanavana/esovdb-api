@@ -302,8 +302,9 @@ module.exports = {
    *  @method appReady
    */
 
-  appReady: () => {
+  appReady: (callback) => {
     if (typeof process.send === 'function') process.send('ready');
+    if (callback && typeof callback === 'function') callback();
   },
   
   /** @method defineTags - Defines a new @sideEffects JSDoc tag for documenting functions with side effects */

@@ -7,7 +7,7 @@
 const dotenv = require('dotenv').config();
 const express = require('express');
 const cleanUp = require('node-cleanup');
-const { db } = require('./batch');
+const { db, monitor } = require('./batch');
 const { appReady, patternsToRegEx } = require('./util');
 const esovdb = require('./esovdb');
 const zotero = require('./zotero');
@@ -120,6 +120,7 @@ app.get('/*', (req, res) => {
  */
 
 const listener = app.listen(3000, '0.0.0.0', async () => {
+  monitor.ping({ state: 'ok', message: 'API server listening on port 3000.' });
   await db.connect();
   console.log('API proxy listening on port ' + listener.address().port);
 });
@@ -129,7 +130,7 @@ const listener = app.listen(3000, '0.0.0.0', async () => {
  *  @requires util
  */
 
-appReady();
+appReady(() => { monitor.ping({ state: 'run', message: 'API Server (re)started.' })});
 
 /**
  *  Instance of node-cleanup, for graceful shutdown of server.
@@ -138,4 +139,5 @@ appReady();
 
 cleanUp(async (code, signal) => {
   await db.quit();
+  monitor.ping({ status: 'complete', message: 'API server shut down.' })
 });
