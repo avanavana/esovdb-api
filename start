@@ -6,7 +6,7 @@
 # - checks for a successful client connection to redis-server using the redis-cli
 # - if connection has been established, server is (re)started using pm2 in cluster mode, with some options for graceful shutdown/startup
 # - if connection cannot be established, exit with error
-# use your own redis and server directory locations
+# - use your own redis and server directory locations
 
 REDIS_DIR="~/workspace/redis-stable"
 SERVER_DIR="~/workspace"

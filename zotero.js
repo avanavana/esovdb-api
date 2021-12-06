@@ -370,15 +370,15 @@ const processItems = async (videos, op, res = null) => {
 
     if (op === 'create') {
       console.log('Posting new items to Discord in the #whats-new channel...');
-      const discord = await queueAsync(posted.map((item) => async () => {
-        const result = webhook.execute(item.data, 'discord', 'newSubmission')
-        if (posted.length > 30) sleep(2);
-        return result;
-      }));
-
-      if (discord && discord.length > 0) {
-        console.log(`› [${discord.length}] item${discord.length === 1 ? '' : 's'} successfully posted to Discord in #whats-new.`);
+      let discord;
+      
+      if (posted.length > 1) {
+        discord = await webhook.execute(posted, 'discord', 'newSubmissionTotal')
+      } else {
+        discord = await webhook.execute(posted[0].data, 'discord', 'newSubmission');
       }
+
+      if (discord && discord.config.data) console.log(`› Successfully posted to ESOVDB Discord in #whats-new.`);
 
       console.log('Tweeting new items from @esovdb...');
       let tweet;

@@ -60,6 +60,39 @@ const webhook = new Map([
     ]
 ]);
 
+const formatDiscordMessage = (title, item) => {
+  const draft = {
+    'content': title,
+    'embeds': [
+      {
+        'title': `${item.title} (${item.date}) [${item.runningTime}]`,
+        'url': item.url,
+        'color': regexTopic.test(item.extra) ? parseInt(topicMetadata.get(item.extra.match(regexTopic)[1]).color, 16) : parseInt('eeeeee', 16),
+        'author': {
+          'name': item.videoRecordingFormat || 'Video'
+        },
+        'footer': {
+          'text': `${item.archiveLocation} (ID: ${item.callNumber})`
+        },
+        'fields': [
+          {
+            'name': 'Topic',
+            'value': item.extra.match(regexTopic)[1]
+          }
+        ]
+      }
+    ]
+  };
+  if (item.abstractNote) draft.embeds[0].description = truncate(item.abstractNote, 200);
+  if (regexYT.test(item.url)) draft.embeds[0].image = { 'url': `http://i3.ytimg.com/vi/${item.url.match(regexYT)[1]}/hqdefault.jpg` };
+  if (stringifyCreators(item.creators) !== 'Unknown') draft.embeds[0].fields.push({ 'name': 'Presenter(s)', 'value': stringifyCreators(item.creators) });
+  if (item.seriesTitle) draft.embeds[0].fields.push({ 'name': 'Series', 'value': `${item.seriesTitle} ${item.volume ? '(Vol. ' + item.volume + ')' : '' }`});
+  if (item.studio !== 'Independent') draft.embeds[0].fields.push({ 'name': 'Publisher', 'value': item.studio });
+  if (regexTags.test(item.extra)) draft.embeds[0].fields.push({ 'name': 'Tags', 'value': item.extra.match(regexTags)[1] });
+  if (regexLearnMore.test(item.extra)) draft.embeds[0].fields.push({ 'name': 'Learn More', 'value': item.extra.match(regexLearnMore)[1] });
+  return draft;
+}
+
 /**
  *  Uses formulae to construct a properly-formatted Discord message for use with webhooks, given a payload and a webhook provider and action identifier
  *
@@ -71,41 +104,13 @@ const webhook = new Map([
  *  @throws {TypeError} Will throw if function is missing arguments
  */
 
-const message = (payload, provider, action) => {                    
+const message = (payload, provider, action) => {
   switch (provider + '-' + action) {
     case 'discord-newSubmissionTotal':
-      return { 'content': payload === 1 ? 'New submission:' : `${payload} new submissions:` };
+      const { data: item } = payload[Math.floor(Math.random() * payload.length)];
+      return formatDiscordMessage(`${payload.length} new submissions, including: <#${topicMetadata.get(item.extra.match(regexTopic)[1]).channelId}>`, item);
     case 'discord-newSubmission':
-      const draft = {
-        'content': `New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`,
-        'embeds': [
-          {
-            'title': `${payload.title} (${payload.date}) [${payload.runningTime}]`,
-            'url': payload.url,
-            'color': regexTopic.test(payload.extra) ? parseInt(topicMetadata.get(payload.extra.match(regexTopic)[1]).color, 16) : parseInt('eeeeee', 16),
-            'author': {
-              'name': payload.videoRecordingFormat || 'Video'
-            },
-            'footer': {
-              'text': `${payload.archiveLocation} (ID: ${payload.callNumber})`
-            },
-            'fields': [
-              {
-                'name': 'Topic',
-                'value': payload.extra.match(regexTopic)[1]
-              }
-            ]
-          }
-        ]
-      };
-      if (payload.abstractNote) draft.embeds[0].description = truncate(payload.abstractNote, 200);
-      if (regexYT.test(payload.url)) draft.embeds[0].image = { 'url': `http://i3.ytimg.com/vi/${payload.url.match(regexYT)[1]}/hqdefault.jpg` };
-      if (stringifyCreators(payload.creators) !== 'Unknown') draft.embeds[0].fields.push({ 'name': 'Presenter(s)', 'value': stringifyCreators(payload.creators) });
-      if (payload.seriesTitle) draft.embeds[0].fields.push({ 'name': 'Series', 'value': `${payload.seriesTitle} ${payload.volume ? '(Vol. ' + payload.volume + ')' : '' }`});
-      if (payload.studio !== 'Independent') draft.embeds[0].fields.push({ 'name': 'Publisher', 'value': payload.studio });
-      if (regexTags.test(payload.extra)) draft.embeds[0].fields.push({ 'name': 'Tags', 'value': payload.extra.match(regexTags)[1] });
-      if (regexLearnMore.test(payload.extra)) draft.embeds[0].fields.push({ 'name': 'Learn More', 'value': payload.extra.match(regexLearnMore)[1] });
-      return draft;
+      return formatDiscordMessage(`New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`, payload);
     default:
       throw new Error('[ERROR] No provider or action given.');
     }
@@ -128,7 +133,7 @@ module.exports = {
   execute: async (payload, provider, action) => {
     try {
       const response = await webhook.get(provider).instance.post(webhook.get(provider).endpoints[action], message(payload, provider, action));
-      if (response.status >= 200) { console.log(`› Successful webhook response from '${provider}' for '${action}.`); return response.config.data; }
+      if (response.status >= 200) { console.log(`› Successful webhook response from '${provider}' for '${action}.`); return response; }
       else { throw new Error(`[ERROR] Webhook failed: '${provider}' for '${action}.`); }
     } catch (err) {
       console.error(err.message);
