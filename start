@@ -6,14 +6,18 @@
 # - checks for a successful client connection to redis-server using the redis-cli
 # - if connection has been established, server is (re)started using pm2 in cluster mode, with some options for graceful shutdown/startup
 # - if connection cannot be established, exit with error
+# use your own redis and server directory locations
 
-[ ! -z "$(ps -ax | grep pm2 | grep -v grep)" ] && pm2 stop ~/workspace/server.js;
+REDIS_DIR="~/workspace/redis-stable"
+SERVER_DIR="~/workspace"
+
+[ ! -z "$(ps -ax | grep pm2 | grep -v grep)" ] && pm2 stop "${SERVER_DIR}/server.js";
 [ ! -z "$(ps -ax | grep redis | grep -v grep)" ] && redis-cli shutdown;
 
-redis-server ~/workspace/redis-stable/redis.conf &
+redis-server "${REDIS_DIR}/redis.conf" &
 
 if [[ `redis-cli ping` = 'PONG' ]]; then 
-  pm2 start ~/workspace/server.js -i 3 --wait-ready --listen-timeout 3000 --kill-timeout 6000
+  pm2 start "${SERVER_DIR}/server.js" -i 3 --wait-ready --listen-timeout 3000 --kill-timeout 6000
 else
   echo "Redis server is not running."
   exit 111
