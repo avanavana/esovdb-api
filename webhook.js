@@ -122,7 +122,7 @@ const message = (payload, provider, action) => {
     case 'discord-newSubmission':
       return itemToDiscord(`New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`, payload);
     case 'discord-userSubmission':
-      return { content: `Submission received! Thanks for your contribution of "${payload.title}" to the ESOVDB!` };
+      return { content: `<@${payload.submitter}> Submission received! Thanks for your contribution of "${payload.title}" to the ESOVDB!` };
     default:
       throw new Error('[ERROR] No provider or action given.');
     }
