@@ -110,7 +110,9 @@ app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true
 
 app.post('/discord', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
   console.log(`Performing discord/userSubmission API request...`);
-  await webhook.execute(req.body, 'discord', 'userSubmission');
+  const response = await webhook.execute(req.body, 'discord', 'userSubmission');
+  if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.')
+  res.status(200).send(response.config.data)
 });
 
 /**
