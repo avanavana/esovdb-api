@@ -74,12 +74,12 @@ module.exports = {
    *  @function batchTweet
    *  @param {Object[]} items - Array of ESOVDB item data on their way to Zotero
    *  @returns {TweetResponse} Twitter tweet response (e.g. { id: '1463065751150112768', text: '[Test] Tweeting from node.js' })
-   *  @sideEffects Posts a single tweet to the @esovdb Twitter account, announcing the addition to the ESOVDB of a batch of multiple videos, featuring a random video from the batch
+   *  @sideEffects Posts a single tweet to the @esovdb Twitter account, announcing the addition to the ESOVDB of a batch of multiple videos, showcasing a video from the batch marked as 'featured', or otherwise a random video from the batch
    *  @throws Will throw an error if the response lacks an id, meaning nothing was tweeted
    */
   
   batchTweet: async (items) => {
-    const { data: item } = items[Math.floor(Math.random() * items.length)];
+    const { data: item } = items.some(({ data: item }) => item.featured) ? items.filter(({ data: item }) => item.featured)[0] : items[Math.floor(Math.random() * items.length)];
     const tweet = `New submissions! Just added ${items.length} new items to the ESOVDB, including "${item.title}" ${item.url} (${item.runningTime}). ${boilerplate}} ${topicHashtags.get(item.extra.match(regexTopic)[1])}`;
     const { data } = await twitter.v2.post('tweets', { text:  tweet.length > 280 ? tweet.substr(0, 279) + '…' : tweet });
     if (!data.id) throw new Error('[ERROR] Unable to post batch tweet.');

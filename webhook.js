@@ -117,7 +117,7 @@ const itemToDiscord = (text, item) => {
 const message = (payload, provider, action) => {
   switch (provider + '-' + action) {
     case 'discord-newSubmissionTotal':
-      const { data: item } = payload[Math.floor(Math.random() * payload.length)];
+      const { data: item } = payload.some(({ data: item }) => item.featured) ? payload.filter(({ data: item }) => item.featured)[0] : payload[Math.floor(Math.random() * payload.length)];
       return itemToDiscord(`${payload.length} new submissions, including: <#${topicMetadata.get(item.extra.match(regexTopic)[1]).channelId}>`, item);
     case 'discord-newSubmission':
       return itemToDiscord(`New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`, payload);
