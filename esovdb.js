@@ -315,7 +315,7 @@ module.exports = {
   },
   
   /**
-   *  Updates one or more Airtable records using the non-destructive Airtable update() method, at most 50 at a time, until all provided records have been updated, using Bottleneck for rate-limiting.
+   *  Updates one or more Airtable records using the non-destructive Airtable update() method, at most 10 at a time, until all provided records have been updated, using Bottleneck for rate-limiting.
    *
    *  @method processUpdates
    *  @requires Airtable
@@ -331,18 +331,18 @@ module.exports = {
     while (updates.length) {
       console.log(
         `Updating record${updates.length === 1 ? '' : 's'} ${
-          i * 50 + 1
+          i * 10 + 1
         }${updates.length > 1 ? '-' : ''}${
           updates.length > 1
-            ? i * 50 +
-              (updates.length < 50
+            ? i * 10 +
+              (updates.length < 10
                 ? updates.length
-                : 50)
+                : 10)
             : ''
         } of ${queue} total...`
       );
 
-      i++, rateLimiter.wrap(base(table).update(updates.splice(0, 50)));
+      i++, rateLimiter.wrap(base(table).update(updates.splice(0, 10)));
     }
     
     return items;

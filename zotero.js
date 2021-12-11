@@ -310,6 +310,48 @@ const formatItems = async (video, template) => {
 };
 
 /**
+ *  Takes a single video or array of videos successfully synced with Zotero and broadcasts them through a specified channel.
+ *
+ *  @async
+ *  @method broadcastItems
+ *  @param {string} channel - A string representation of a broadcast/social media channel (e.g. 'discord' or 'twitter')
+ *  @param {(Object[])} videos - An array of one or more Zotero response objects, resulting from a successful Zotero sync
+ *  @sideEffects Sends a message out as a broadcast to the specified channel, using the video data provided
+ *  @returns {Object} A response object from the broadcast channel's web service
+ */
+
+const broadcastItems = async (channel, videos) => {
+  let results;
+  
+  switch (channel) {
+    case 'discord':
+      console.log('Posting new items to Discord in the #whats-new channel...');
+      
+      if (videos.length > 1) {
+        results = await webhook.execute(videos, 'discord', 'newSubmissionTotal')
+      } else {
+        results = await webhook.execute(videos[0].data, 'discord', 'newSubmission');
+      }
+
+      if (results && results.config.data) console.log(`› Successfully posted to ESOVDB Discord in #whats-new.`);
+      break;
+    case 'twitter':
+      console.log('Tweeting new items from @esovdb...');
+
+      if (posted.length > 1) {
+        results = await twitter.batchTweet(posted);
+      } else {
+        results = await twitter.tweet(posted[0].data);
+      }
+
+      if (results && results.id) console.log(`› Successfully tweeted from @esovdb.`);
+      break;
+    default:
+      throw new Error('[ERROR] Unknown or invalid broadcast channel.');
+  }
+}
+
+/**
  *  Takes a single ESOVDB video object or an array of ESOVDB video objects from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero API endpoint, retrieves a new item template from the Zotero API using {@link getTemplate}, maps those requested video objects to an array valid new or updated Zotero items (depending on whether a Zotero key and version are passed) using {@link formatItems}, attempts to POST that array of formatted items to a Zotero library using {@link postItems}, and then syncs the updated Zotero version (if updated) or newly acquired Zotero key and version (if created) back with the ESOVDB for each item successfully posted to the Zotero library, using {@link updateTable}, sending a server response of 200 with the JSON of any successfully updated/added items.
  *
  *  @async
@@ -369,29 +411,9 @@ const processItems = async (videos, op, res = null) => {
     }));
 
     if (op === 'create') {
-      posted = posted.map((item) => ( { data: { ...item.data, featured: videos.filter((video) => video.esovdbId === item.callNumber).featured }}));
-      
-      console.log('Posting new items to Discord in the #whats-new channel...');
-      let discord;
-      
-      if (posted.length > 1) {
-        discord = await webhook.execute(posted, 'discord', 'newSubmissionTotal')
-      } else {
-        discord = await webhook.execute(posted[0].data, 'discord', 'newSubmission');
-      }
-
-      if (discord && discord.config.data) console.log(`› Successfully posted to ESOVDB Discord in #whats-new.`);
-
-      console.log('Tweeting new items from @esovdb...');
-      let tweet;
-
-      if (posted.length > 1) {
-        tweet = await twitter.batchTweet(posted);
-      } else {
-        tweet = await twitter.tweet(posted[0].data);
-      }
-
-      if (tweet && tweet.id) console.log(`› Successfully tweeted from @esovdb.`);
+      const itemsToBroadcast = posted.map((item) => ( { data: { ...item.data, featured: videos.filter((video) => video.esovdbId === item.callNumber).featured }}));
+      await broadcastItems('discord', itemsToBroadcast);
+      await broadcastItems('twitter', itemsToBroadcast);
     }
 
     const updated = await updateTable(itemsToSync, 'Videos');
