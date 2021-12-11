@@ -322,7 +322,7 @@ const formatItems = async (video, template) => {
 
 const processItems = async (videos, op, res = null) => {
   const template = await getTemplate();
-  let items = await queueAsync(videos.map((video) => () => formatItems(video, template)));
+  let items = await queueAsync(videos.map((video) => async () => await formatItems(video, template)));
 
   let i = 0,
     totalSuccessful = 0,
