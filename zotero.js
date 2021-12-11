@@ -369,6 +369,8 @@ const processItems = async (videos, op, res = null) => {
     }));
 
     if (op === 'create') {
+      posted = posted.map((item) => ( { data: { ...item.data, featured: videos.filter((video) => video.esovdbId === item.callNumber).featured }}));
+      
       console.log('Posting new items to Discord in the #whats-new channel...');
       let discord;
       
