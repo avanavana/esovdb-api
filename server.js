@@ -85,9 +85,9 @@ app.post('/esovdb/:table/update', [ middleware.validateReq, express.urlencoded({
  *  @callback zotero.syncItems
  */
 
-app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+app.post('/zotero/videos', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/create API request...`);
-  zotero.syncItems(req, res, 'create');
+  zotero.syncVideos(req, res, 'create');
 });
 
 /**
@@ -97,9 +97,9 @@ app.post('/zotero', [ middleware.validateReq, express.urlencoded({ extended: tru
  *  @callback zotero.syncItems
  */
 
-app.put('/zotero', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+app.put('/zotero/videos', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/update API request...`);
-  zotero.syncItems(req, res, 'update');
+  zotero.syncVideos(req, res, 'update');
 });
 
 /**

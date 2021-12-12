@@ -466,7 +466,7 @@ module.exports = {
    *  Takes a single ESOVDB video object or an array of ESOVDB video objects from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero API endpoint, and then either processes it singularly or uses Redis sets to create a batch of multiple items to be processed together.
    *
    *  @async
-   *  @method syncItems
+   *  @method syncVideos
    *  @requires batch
    *  @requires rxjs
    *  @requires redis
@@ -478,7 +478,7 @@ module.exports = {
    *  @sideEffects Takes data received through the '/zotero' endpoint, creates a Redis set for created items, and Observable stream that populates a Redis set within a time window for updated items, and finally sends the batch to be processed using {@link processItems}
    */
   
-  syncItems: async (req, res, op) => {
+  syncVideos: async (req, res, op) => {
     try {
       const videos = Array.isArray(req.body) ? req.body : Array.of(req.body);
       
