@@ -28,21 +28,21 @@ module.exports = {
   monitor,
   
   /**
-   *  Appends a video to the current batch, as a Redis set item for batch processing
+   *  Appends an object or multiple objects to the current batch, as part of a Redis set used for batch processing
    *
    *  @async
    *  @method append
+   *  @param {string} kind - String representation of the type of resource being synced, sent via URL parameter (e.g. 'items' or 'collections')
    *  @param {('create'|'update')} op - String representation of the current batch operation 
-   *  @param {Object[]} videos - The surrounding array that encapsulates a video object coming from Airtable (ESOVDB)
-   *  @param {Object} videos.video - The video from Airtable (ESOVDB) to be appended to the current batch
+   *  @param {Object[]} items - An array of objects from Airtable (ESOVDB) to be appended to the current batch
    *  @sideEffects Adds new batch data as redis set item under the redis key for the current batch
    *  @returns {Object[]} An array of all items in the Redis set representing the current batch
    */
   
-  append: async (op, [ video ]) => {
-    await db.sAdd(`batch:${op}`, JSON.stringify(video));
-    const data = await db.sMembers(`batch:${op}`);
-    return data.map((video) => JSON.parse(video));
+  append: async (kind, op, items) => {
+    await db.sAdd(`batch:${kind}:${op}`, items.map((item) => JSON.stringify(item)));
+    const data = await db.sMembers(`batch:${kind}:${op}`);
+    return data.map((item) => JSON.parse(item));
   },
   
   /**
@@ -50,13 +50,14 @@ module.exports = {
    *
    *  @async
    *  @method clear
+   *  @param {string} kind - String representation of the type of resource being synced, sent via URL parameter (e.g. 'items' or 'collections')
    *  @param {('create'|'update')} op - String representation of the current batch operation 
    *  @sideEffects Deletes Redis key for current batch
    */
   
-  clear: async (op) => {
+  clear: async (kind, op) => {
     console.log('cleaning up batch…');
-    await db.del(`batch:${op}`);
+    await db.del(`batch:${kind}:${op}`);
   },
   
   /**
@@ -64,13 +65,14 @@ module.exports = {
    *
    *  @async
    *  @method get
+   *  @param {string} kind - String representation of the type of resource being synced, sent via URL parameter (e.g. 'items' or 'collections')
    *  @param {('create'|'update')} op - String representation of the current batch operation 
-   *  @returns {Object[]} An array of video objects for batch processing
+   *  @returns {Object[]} An array of objects for batch processing
    */
   
-  get: async (op) => {
-    const data = await db.sMembers(`batch:${op}`);
-    return data.map((video) => JSON.parse(video));
+  get: async (kind, op) => {
+    const data = await db.sMembers(`batch:${kind}:${op}`);
+    return data.map((item) => JSON.parse(item));
   },
   
   /**
@@ -87,9 +89,10 @@ module.exports = {
    *
    *  @async
    *  @method size
+   *  @param {string} kind - String representation of the type of resource being synced, sent via URL parameter (e.g. 'items' or 'collections')
    *  @param {('create'|'update')} op - String representation of the current batch operation 
    *  @returns {number} The length of the current batch, or cardinality of the Redis set representing the current batch
    */
   
-  size: async (op) => await db.sCard(`batch:${op}`)
+  size: async (kind, op) => await db.sCard(`batch:${kind}:${op}`)
 }

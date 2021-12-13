@@ -80,49 +80,26 @@ app.post('/esovdb/:table/update', [ middleware.validateReq, express.urlencoded({
 });
 
 /**
- *  API POST endpoint for ESOVDB video.onCreateRecord automation
+ *  API POST endpoint for ESOVDB onCreateRecord automations
  *  @requires zotero
- *  @callback zotero.syncItems
+ *  @callback zotero.sync
  */
 
-app.post('/zotero/items', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing zotero/create API request...`);
-  zotero.syncVideos(req, res, 'create');
+app.post('/zotero/:kind', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  console.log(`Performing zotero/${req.params.kind}/create API request...`);
+  zotero.sync(req, res, req.params.kind, 'create');
 });
 
 /**
- *  API PUT endpoint for ESOVDB video.onUpdateRecord automation
+ *  API PUT endpoint for ESOVDB onUpdateRecord automations
  *  @requires zotero
  *  @requires redis
- *  @callback zotero.syncItems
+ *  @callback zotero.sync
  */
 
-app.put('/zotero/items', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing zotero/update API request...`);
-  zotero.syncVideos(req, res, 'update');
-});
-
-/**
- *  API POST endpoint for ESOVDB series.onCreateRecord automation
- *  @requires zotero
- *  @callback zotero.syncCollection
- */
-
-app.post('/zotero/collections', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing zotero/create API request...`);
-  zotero.syncCollection(req, res, 'create');
-});
-
-/**
- *  API PUT endpoint for ESOVDB series.onUpdateRecord automation
- *  @requires zotero
- *  @requires redis
- *  @callback zotero.syncCollection
- */
-
-app.put('/zotero/collections', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing zotero/update API request...`);
-  zotero.syncCollection(req, res, 'update');
+app.put('/zotero/:kind', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  console.log(`Performing zotero/${req.params.kind}/update API request...`);
+  zotero.sync(req, res, req.params.kind, 'update');
 });
 
 /**

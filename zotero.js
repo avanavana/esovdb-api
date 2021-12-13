@@ -35,8 +35,8 @@ const zotero = axios.create({
 
 zoteroLibrary.defaults.headers.post['Content-Type'] = 'application/json';
 
-/** @constant {Map} collections - Maps parent collections names from the ESOVDB to parent collection IDs in the Zotero library */
-const collections = new Map([
+/** @constant {Map} parentCollections - Maps parent collections names from the ESOVDB to parent collection IDs in the Zotero library */
+const parentCollections = new Map([
   ['series', 'HYQEFRGR'],
   ['topics', 'EGB8TQZ8']
 ]);
@@ -130,71 +130,27 @@ const getTemplate = async () => {
  */
 
 /**
- *  Adds or updates one or more items in a Zotero Library depending on whether a given item object is passed with Zotero key and version properties and returns a {@link ZoteroResponse} object from the Zotero API.  Failed items are also written to failed.json for forensic/debugging purposes.
+ *  Adds or updates one or more objects in a Zotero Library depending on whether a given object is passed with Zotero key and version properties and returns a {@link ZoteroResponse} object from the Zotero API.
  *
  *  @async
  *  @function postItems
  *  @requires fs
  *  @requires axios
- *  @param {Object[]} items - An array of objects formatted as Zotero items according to the Zotero Web API 3.0 docs
+ *  @param {Object[]} items - An array of objects formatted as Zotero objects according (e.g. items, collections) to the Zotero Web API 3.0 docs
  *  @returns {ZoteroResponse} An object containing an array of successfully added or updated Zotero item objects, an array of Zotero item keys of unchanged Zotero items, and an array of Zotero item objects of Zotero items which failed to be added or updated
- *  @sideEffects Posts formatted videos from ESOVDB to Zotero, writes any failed items to disk as failed.json
- *  @throws Will thrown an error if failed items cannot be logged to disk
  *  @see [Zotero Web API 3.0 › Write Requests › Creating Multiple Objects]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#creating_multiple_objects}
  */
 
-const postItems = async (items) => {
+const postItems = async (path, items) => {
   try {
-    const response = await zoteroLibrary.post('items', items);
-    const successful = Object.values(response.data.successful);
-    const unchanged = Object.values(response.data.unchanged);
-    const failed = Object.values(response.data.failed);
-
-    if (successful.length > 0) {
-      console.log(`› Successfully posted ${successful.length} item${successful.length === 1 ? '' : 's'}.`);
-    }
-    
-    if (unchanged.length > 0) {
-      console.log(`› ${unchanged.length} item${unchanged.length === 1 ? '' : 's'} left unchanged.`);
-    }
-
-    if (failed.length > 0) {
-      console.error(`› Failed to post ${failed.length} video${failed.length === 1 ? '' : 's'}.`);
-      const failedItems = JSON.stringify(response.data.failed);
-
-      fs.writeFile('failed.json', failedItems, 'utf8', (err) => {
-        if (err) throw new Error('[ERROR] An error occured while writing JSON Object to File.');
-      });
-    }
-    
-    return { successful: successful, unchanged: unchanged, failed: failed };
-  } catch (err) {
-    console.error(err.message);
-  }
-};
-
-/**
- *  Posts a new collection to the ESOVDB public Zotero library.
- *  
- *  @async
- *  @function createCollection
- *  @requires axios
- *  @param {string} name - The name of the collection to create in Zotero
- *  @param {('series'|'topics')} parent - String representing the parent collection, one of either 'series' or 'topics' (for the time being)
- *  @returns {ZoteroResponse} An object containing an array of successfully added or updated Zotero item objects, an array of Zotero item keys of unchanged Zotero items, and an array of Zotero item objects of Zotero items which failed to be added or updated
- *  @sideEffects Creates a new collection in Zotero called 'name' belonging to either the 'series' or 'topics' parent collection
- *  @throws Will throw an error if the parent collection is not recognized
- *  @see [Zotero Web API 3.0 › Write Requests › Creating a Collection]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#creating_a_collection}
- */
-
-const createCollection = async (name, parent) => {
-  try {
-    if (collections.get(parent)) {
-      console.log(`No ${parent} collection named "${name}", creating new collection...`);
-      return await zoteroLibrary.post('collections', [{ name: name, parentCollection: collections.get(parent) }]);
-    } else {
-      throw new Error('[ERROR] Unrecognized parent collection.');
-    }
+    const { data } = await zoteroLibrary.post(path, items);
+    const successful = Object.values(data.successful);
+    const unchanged = Object.values(data.unchanged);
+    const failed = Object.values(data.failed);
+    if (successful.length > 0) console.log(`› Successfully posted ${successful.length} item${successful.length === 1 ? '' : 's'}.`);
+    if (unchanged.length > 0) console.log(`› ${unchanged.length} item${unchanged.length === 1 ? '' : 's'} left unchanged.`);
+    if (failed.length > 0) console.error(`› Failed to post ${failed.length} item${failed.length === 1 ? '' : 's'}.`);
+    return { successful, unchanged, failed };
   } catch (err) {
     console.error(err.message);
   }
@@ -262,9 +218,7 @@ const formatItems = async (video, template) => {
     url: video.url || '',
     accessDate: formatDate(video.accessDate) || '',
     archive: 'Earth Science Online Video Database',
-    archiveLocation:
-      'https://airtable.com/tbl3WP689vHdmg7P2/viwD9Tpr6JAAr97CW/' +
-      video.recordId,
+    archiveLocation: `https://airtable.com/tbl3WP689vHdmg7P2/viwD9Tpr6JAAr97CW/${video.recordId}`,
     libraryCatalog: '',
     callNumber: video.esovdbId || '',
     rights: '',
@@ -284,12 +238,12 @@ const formatItems = async (video, template) => {
       payload.collections.push(video.zoteroSeries);
     } else {
       try {
-        const { data } = await createCollection(video.series, 'series');
+        const { data } = await postItems('collections', [ { name: video.series } ]);
 
-        if (data.success && Object.values(data.success).length > 0) {
+        if (data.successful && Object.values(data.successful).length > 0) {
           console.log(`› Successfully created collection "${video.series}" under "Series".`)
-          payload.collections.push(data.success[0]);
-          const updateSeriesResponse = await updateTable([{ id: video.seriesId, fields: { 'Zotero Key': data.success[0] } }], 'Series');
+          payload.collections.push(data.successful[0].key);
+          const updateSeriesResponse = await updateTable([{ id: video.seriesId, fields: { 'Zotero Key': data.successful[0].key, 'Source': { name: 'Automation' } } }], 'Series');
           
           if (updateSeriesResponse && updateSeriesResponse.length > 0) {
             console.log('› Successfully synced series collection key with the ESOVDB.');
@@ -313,7 +267,7 @@ const formatItems = async (video, template) => {
  *  Takes a single video or array of videos successfully synced with Zotero and broadcasts them through a specified channel.
  *
  *  @async
- *  @method broadcastItems
+ *  @function broadcastItems
  *  @param {string} channel - A string representation of a broadcast/social media channel (e.g. 'discord' or 'twitter')
  *  @param {(Object[])} videos - An array of one or more Zotero response objects, resulting from a successful Zotero sync
  *  @sideEffects Sends a message out as a broadcast to the specified channel, using the video data provided
@@ -352,10 +306,94 @@ const broadcastItems = async (channel, videos) => {
 }
 
 /**
- *  Takes a single ESOVDB video object or an array of ESOVDB video objects from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero API endpoint, retrieves a new item template from the Zotero API using {@link getTemplate}, maps those requested video objects to an array valid new or updated Zotero items (depending on whether a Zotero key and version are passed) using {@link formatItems}, attempts to POST that array of formatted items to a Zotero library using {@link postItems}, and then syncs the updated Zotero version (if updated) or newly acquired Zotero key and version (if created) back with the ESOVDB for each item successfully posted to the Zotero library, using {@link updateTable}, sending a server response of 200 with the JSON of any successfully updated/added items.
+ *  Takes a single ESOVDB series record or an array of ESOVDB series records from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero/collections API endpoint, maps those requested series objects to an array valid new or updated Zotero collections (depending on whether a Zotero key and version are passed), attempts to POST that array of formatted collections to a Zotero library using {@link postItems}, and then syncs the updated Zotero version (if updated) or newly acquired Zotero key and version (if created) back with the ESOVDB for each collection successfully posted to the Zotero library, using {@link updateTable}, sending a server response of 200 with the JSON of any successfully updated/added collections.
  *
  *  @async
- *  @method processItems
+ *  @function processCollections
+ *  @param {(Object|Object[])} series - A single object or array of objects representing records from the ESOVDB series table in Airtable sent through an ESOVDB Airtable automation
+ *  @param {('create'|'update)} op - String representation of the current batch operation 
+ *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
+ *  @sideEffects Formats new or updated collections to be compatible with Zotero, posts them to Zotero
+ */
+
+const processCollections = async (series, op, res = null) => {
+  const collections = series.map((collection) => {
+    const payload = {
+      name: collection.name,
+      parentCollection: parentCollections.get('series')
+    };
+    
+    if (collection.zoteroKey && collection.zoteroVersion) {
+      payload.key = collection.zoteroKey;
+      payload.version = collection.zoteroVersion;
+    }
+    
+    return payload;
+  });
+  console.log(collections);
+  let i = 0,
+    totalSuccessful = 0,
+    totalUnchanged = 0,
+    totalFailed = 0,
+    posted = [],
+    queue = collections.length;
+
+  while (collections.length) {
+    console.log(
+      `Posting series collection${collections.length === 1 ? '' : 's'} ${
+        i * 50 + 1
+      }${collections.length > 1 ? '-' : ''}${
+        collections.length > 1
+          ? i * 50 +
+            (collections.length < 50
+              ? collections.length
+              : 50)
+          : ''
+      } of ${queue} total to Zotero...`
+    );
+    
+    let { successful, unchanged, failed } = await postItems('collections', collections.splice(0, 50));
+    if (successful.length > 0) posted = [ ...posted, ...successful ];
+    totalSuccessful += successful.length;
+    totalUnchanged += unchanged.length;
+    totalFailed += failed.length;
+    if (collections.length > 50) await sleep(zoteroRateLimit);
+    i++;
+  }
+
+  console.log('Zotero response summary:');
+  if (totalSuccessful > 0) console.log(`› [${totalSuccessful}] series collection${totalSuccessful === 1 ? '' : 's'} total added or updated.`);
+  if (totalUnchanged > 0) console.log(`› [${totalUnchanged}] series collection${totalUnchanged === 1 ? '' : 's'} total left unchanged.`);
+  if (totalFailed > 0) console.log(`› [${totalFailed}] series collection${totalFailed === 1 ? '' : 's'} total failed to add or update.`);
+  
+  if (posted.length > 0) {
+    const collectionsToSync = posted.map(({ data: collection }) => ({
+      id: series.filter((s) => s.name === collection.name)[0].id,
+      fields: {
+        'Zotero Key': collection.key,
+        'Zotero Version': collection.version,
+      }
+    }));
+
+    const updated = await updateTable(collectionsToSync, 'Series');
+
+    if (updated && updated.length > 0) {
+      console.log(`› [${updated.length}] collection${updated.length === 1 ? '\'s' : 's\''} Zotero key and version synced with the ESOVDB.`);
+      if (res) res.status(200).send(JSON.stringify(updated));
+    } else {
+      if (res) res.status(404).send('Unable to sync Zotero collection updates with the ESOVDB.');
+      throw new Error('[ERROR] Error syncing collections with the ESOVBD.');
+    }
+  } else {
+    if (res) res.status(404).send('No collections were posted to Zotero.');
+  }
+}
+
+/**
+ *  Takes a single ESOVDB video record or an array of ESOVDB video records from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero/items API endpoint, retrieves a new item template from the Zotero API using {@link getTemplate}, maps those requested video objects to an array valid new or updated Zotero items (depending on whether a Zotero key and version are passed) using {@link formatItems}, attempts to POST that array of formatted items to a Zotero library using {@link postItems}, and then syncs the updated Zotero version (if updated) or newly acquired Zotero key and version (if created) back with the ESOVDB for each item successfully posted to the Zotero library, using {@link updateTable}, sending a server response of 200 with the JSON of any successfully updated/added items.
+ *
+ *  @async
+ *  @function processItems
  *  @param {(Object|Object[])} videos - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
  *  @param {('create'|'update)} op - String representation of the current batch operation 
  *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
@@ -422,7 +460,7 @@ const processItems = async (videos, op, res = null) => {
       console.log(`› [${updated.length}] item${updated.length === 1 ? '\'s' : 's\''} Zotero key and version synced with the ESOVDB.`);
       if (res) res.status(200).send(JSON.stringify(updated));
     } else {
-      if (res) res.status(404).send('Unable to sync Zotero updates with the ESOVDB.');
+      if (res) res.status(404).send('Unable to sync Zotero item updates with the ESOVDB.');
       throw new Error('[ERROR] Error syncing items with the ESOVBD.');
     }
   } else {
@@ -432,80 +470,135 @@ const processItems = async (videos, op, res = null) => {
 
 let timer;
 
-/** @constant {Subject} stream - Multicast observable subject that emits on each http PUT request to '/zotero' */
-const stream = new Subject();
+/** @constant {Subject} itemsStream - Multicast observable subject that emits on each http PUT request to '/zotero/items' */
+const itemsStream = new Subject();
+
+/** @constant {Subject} collectionsStream - Multicast observable subject that emits on each http PUT request to '/zotero/collections' */
+const collectionsStream = new Subject();
 
 /** @constant {Observable} onComplete - Observable which instantly emits its complete notification */
 const onComplete$ = new Observable(subscriber => { subscriber.complete(); });
 
-/** @constant {Observer} observer - Observer class that subscribes to updates {@link stream} Observable generated from http PUT requests to '/zotero' */
-const observer = {
-    next: async ([req, res]) => {
-      const data = await batch.append('update', Array.of(req.body));
+/** @constant {Observer} itemsObserver - Subscribes to updates {@link stream} that are items. Observable generated from http PUT requests to '/zotero/items' */
+const itemsObserver = {
+    next: async ([ req, res ]) => {
+      const data = await batch.append('items', 'update', Array.of(req.body));
       console.log(`› Added item ${data.length} to batch.`);
       res.status(202).send(data);
       clearTimeout(timer);
-      timer = setTimeout(() => { onComplete$.subscribe(observer); }, batch.interval()); 
+      timer = setTimeout(() => { onComplete$.subscribe(itemsObserver); }, batch.interval()); 
     },
     err: (err) => { console.error(err) },
     complete: async () => {
-      const data = await batch.get('update');
-      await processItems(data.sort(sortDates), 'update');
-      console.log(`› Successfully batch processed ${data.length} items.`);
-      await batch.clear('update');
+      const data = await batch.get('items', 'update');
+      processItems(data.sort(sortDates), 'update');   
+      console.log(`› Successfully batch processed ${data.length} item${data.length > 1 ? '' : 's'}.`);
+      await batch.clear('items', 'update');
       clearTimeout(timer);
     }
 };
 
-/** @constant {Subscription} subscription - Subscription created from observing {@link stream} with {@link observer} */
-const subscription = stream.subscribe(observer);
+/** @constant {Observer} collectionsObserver - Subscribes to updates {@link stream} that are collections. Observable generated from http PUT requests to '/zotero/collections' */
+const collectionsObserver = {
+    next: async ([ req, res ]) => {
+      const data = await batch.append('collections', 'update', Array.of(req.body));
+      console.log(`› Added collection ${data.length} to batch.`);
+      res.status(202).send(data);
+      clearTimeout(timer);
+      timer = setTimeout(() => { onComplete$.subscribe(collectionsObserver); }, batch.interval()); 
+    },
+    err: (err) => { console.error(err) },
+    complete: async () => {
+      const data = await batch.get('collections', 'update');
+      processCollections(data, 'update');
+      console.log(`› Successfully batch processed ${data.length} collection${data.length > 1 ? '' : 's'}.`);
+      await batch.clear('collections', 'update');
+      clearTimeout(timer);
+    }
+};
+
+/** @constant {Subscription} itemsSubscription - Subscription created from observing {@link itemsStream} with {@link itemsObserver} */
+const itemsSubscription = itemsStream.subscribe(itemsObserver);
+
+/** @constant {Subscription} collectionsSubscription - Subscription created from observing {@link collectionsStream} with {@link collectionsObserver} */
+const collectionsSubscription = collectionsStream.subscribe(collectionsObserver);
 
 module.exports = {
   
   /**
-   *  Takes a single ESOVDB video object or an array of ESOVDB video objects from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero/items API endpoint, and then either processes it singularly or uses Redis sets to create a batch of multiple items to be processed together.
+   *  Takes a single ESOVDB record or an array of ESOVDB records from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero/:kind API endpoint, and then either processes it singularly or uses Redis sets to create a batch of multiple items to be processed together.
    *
    *  @async
-   *  @method syncItems
+   *  @method sync
    *  @requires batch
    *  @requires rxjs
    *  @requires redis
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
-   *  @param {(Object|Object[])} req.body - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
+   *  @param {(Object|Object[])} req.body - A single object or array of objects representing records from the ESOVDB videos table in Airtable, sent through an ESOVDB Airtable automation
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
-   *  @param {RedisClient} client - The currently connected Redis client instance
+   *  @param {string} kind - String representation of the type of resource being synced, sent via URL parameter (e.g. 'items' or 'collections')
    *  @param {('create'|'update')} op - String representation of the current batch operation 
-   *  @sideEffects Takes data received through the '/zotero/items' endpoint, creates a Redis set for created items, and Observable stream that populates a Redis set within a time window for updated items, and finally sends the batch to be processed using {@link processItems}
+   *  @sideEffects Takes data received through the '/zotero/:kind' endpoint, creates a Redis set for created records, and Observable stream that populates a Redis set within a time window for updated records, and finally sends the batch to be processed
    */
   
-  syncItems: async (req, res, op) => {
+  sync: async (req, res, kind, op) => {
     try {
-      const videos = Array.isArray(req.body) ? req.body : Array.of(req.body);
+      const records = Array.isArray(req.body) ? req.body : Array.of(req.body);
       
       switch (op) {
         case 'create':
-          if (videos[0].batch && videos[0].batchSize > 1) {
+          if (records[0].batch && records[0].batchSize > 1) {
             let data = [];
-            await batch.size(op) === 0 && console.log(`Processing batch create request of ${videos[0].batchSize} items…`);
-            data = await batch.append(op, videos);
-            console.log(`› Added item ${data.length} of ${videos[0].batchSize} to batch.`);
+            await batch.size(kind, op) === 0 && console.log(`Processing batch create request of ${records[0].batchSize} ${kind}…`);
+            data = await batch.append(op, kind, records);
+            console.log(`› Added ${kind.substr(0, kind.length - 1)} ${data.length} of ${records[0].batchSize} to batch.`);
             
-            if (await batch.size(op) >= videos[0].batchSize) { 
-              await batch.clear(op);
-              await processItems(data.sort(sortDates), op, res);
-              console.log(`› Successfully batch processed ${videos[0].batchSize} items.`);
+            if (await batch.size(kind, op) >= records[0].batchSize) {
+              await batch.clear(kind, op);
+              switch (kind) {
+                case 'items':
+                  await processItems(data.sort(sortDates), op, res);
+                  break;
+                case 'collections':
+                  await processCollections(data, op, res);
+                  break;
+                default:
+                  return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
+              }
+              console.log(`› Successfully batch processed ${records[0].batchSize} ${kind}.`);
             } else {
               return res.status(202).send(data);
             }
           } else {
-            console.log(`Processing single create item request…`);
-            await processItems(videos, op, res);
-            console.log(`› Successfully processed the new item.`);
+            console.log(`Processing single create ${kind.substr(0, kind.length - 1)} request…`);
+            switch (kind) {
+              case 'items':
+                await processItems(records, op, res);
+                break;
+              case 'collections':
+                await processCollections(records, op, res);
+                break;
+              default:
+                return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
+            }
+            console.log(`› Successfully processed the new ${kind.substr(0, kind.length - 1)}.`);
           }
           break;
         case 'update':
-          console.log(`Processing update item request (length unknown)…`);
-          stream.next([ req, res ]);
+          console.log(`Processing update ${kind} request (length unknown)…`);
+          switch (kind) {
+            case 'items':
+              itemsStream.next([ req, res ]);
+              break;
+            case 'collections':
+              collectionsStream.next([ req, res ]);
+              break;
+            case 'collections-count':
+              await processItems(records, op, res);
+              break;
+            default:
+              return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
+          }
           break;
         default:
           return res.status(400).send('Invalid operation.');
@@ -513,25 +606,5 @@ module.exports = {
     } catch (err) {
       console.error(err.message);
     }
-  },
-  
-  /**
-   *  Takes a single ESOVDB series object or an array of ESOVDB series objects from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero/collections API endpoint, and then either processes it singularly or uses Redis sets to create a batch of multiple items to be processed together.
-   *
-   *  @async
-   *  @method syncCollections
-   *  @requires batch
-   *  @requires rxjs
-   *  @requires redis
-   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
-   *  @param {(Object|Object[])} req.body - A single object or array of objects representing series from the ESOVDB series table in Airtable, sent through an ESOVDB Airtable automation
-   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
-   *  @param {RedisClient} client - The currently connected Redis client instance
-   *  @param {('create'|'update')} op - String representation of the current batch operation 
-   *  @sideEffects Takes data received through the '/zotero/collections' endpoint, creates a Redis set for created collections, and Observable stream that populates a Redis set within a time window for updated collections, and finally sends the batch to be processed using {@link processItems}
-   */
-  
-  syncCollections: async (req, res, op) => {
-    return res.status(200).send('OK');
   }
 }
