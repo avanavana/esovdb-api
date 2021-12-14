@@ -7,6 +7,7 @@
 const dotenv = require('dotenv').config();
 const express = require('express');
 const cleanUp = require('node-cleanup');
+const cors = require('cors');
 const { db, monitor } = require('./batch');
 const { appReady, patternsToRegEx } = require('./util');
 const esovdb = require('./esovdb');
@@ -100,6 +101,20 @@ app.post('/zotero/:kind', [ middleware.validateReq, express.urlencoded({ extende
 app.put('/zotero/:kind', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/${req.params.kind}/update API request...`);
   zotero.sync(req, res, req.params.kind, 'update');
+});
+
+/** CORS Pre-flight options for DELETE routes */
+app.options('/zotero/:kind', cors());
+
+/**
+ *  API DELETE endpoint for ESOVDB onDeleteRecord actions
+ *  @requires zotero
+ *  @callback zotero.sync
+ */
+
+app.delete('/zotero/:kind', [ middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  console.log(`Performing zotero/${req.params.kind}/delete API request...`);
+  zotero.sync(req, res, req.params.kind, 'delete');
 });
 
 /**

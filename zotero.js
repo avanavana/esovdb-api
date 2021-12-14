@@ -134,11 +134,10 @@ const getTemplate = async () => {
  *
  *  @async
  *  @function postItems
- *  @requires fs
  *  @requires axios
  *  @param {Object[]} items - An array of objects formatted as Zotero objects according (e.g. items, collections) to the Zotero Web API 3.0 docs
  *  @returns {ZoteroResponse} An object containing an array of successfully added or updated Zotero item objects, an array of Zotero item keys of unchanged Zotero items, and an array of Zotero item objects of Zotero items which failed to be added or updated
- *  @see [Zotero Web API 3.0 › Write Requests › Creating Multiple Objects]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#creating_multiple_objects}
+ *  @see [Zotero Web API 3.0 › Write Requests › Deleting Multiple Objects]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#deleting_multiple_items} and [Zotero Web API 3.0 › Write Requests › Deleting Multiple Collections]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#deleting_multiple_collections}
  */
 
 const postItems = async (path, items) => {
@@ -153,6 +152,37 @@ const postItems = async (path, items) => {
     return { successful, unchanged, failed };
   } catch (err) {
     console.error(err.message);
+  }
+};
+
+/**
+ *  Deletes one or more objects from a Zotero Library and returns a {@link ZoteroResponse} object from the Zotero API.
+ *
+ *  @async
+ *  @function deleteItems
+ *  @requires axios
+ *  @param {string[]} items - An array of one or more Zotero Key strings
+ *  @returns {Object} An object containing two arrays of Zotero Key strings, one for successful deletions, and one for failures, and a total number of successes.  
+ *  @see [Zotero Web API 3.0 › Write Requests › Creating Multiple Objects]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#creating_multiple_objects}
+ */
+
+const deleteItems = async (items, kind, res = false) => {
+  let i = 0, deleted = [], queue = items.length;
+  
+  while (items.length) {
+    console.log(`Deleting ${items.length === 1 ? kind.substr(0, kind.length - 1) : kind} ${i * 50 + 1}${items.length > 1 ? '-' : ''}${items.length > 1 ? i * 50 + (items.length < 50 ? items.length : 50) : ''} of ${queue} total from Zotero...`);
+    const response = await zoteroLibrary.delete(kind, { params: { [`${kind.substr(0, kind.length - 1)}Key`]: items.splice(0, 50).map((item) => item.zoteroKey).join(',') } });
+    if (response.status === 204) deleted = [ ...deleted, true ];
+    if (items.length > 50) await sleep(zoteroRateLimit);
+    i++;
+  }
+ 
+  if (!deleted.some((response) => !response) && res) {
+    console.log(`› Successfully deleted ${queue} item${queue === 1 ? '' : 's'}.`);
+    return res.status(200).send(deleted);
+  } else {
+    if (res) res.status(404).send(`Unable to sync ${queue} deleted item${queue === 1 ? '' : 's'} with Zotero.`);
+    throw new Error(`[ERROR] Unable to sync ${queue} deleted item${queue === 1 ? '' : 's'} with Zotero.`);
   }
 };
 
@@ -330,7 +360,7 @@ const processCollections = async (series, op, res = null) => {
     
     return payload;
   });
-  console.log(collections);
+
   let i = 0,
     totalSuccessful = 0,
     totalUnchanged = 0,
@@ -492,7 +522,7 @@ const itemsObserver = {
     complete: async () => {
       const data = await batch.get('items', 'update');
       processItems(data.sort(sortDates), 'update');   
-      console.log(`› Successfully batch processed ${data.length} item${data.length > 1 ? '' : 's'}.`);
+      console.log(`› Successfully batch updated ${data.length} item${data.length > 1 ? '' : 's'}.`);
       await batch.clear('items', 'update');
       clearTimeout(timer);
     }
@@ -502,7 +532,7 @@ const itemsObserver = {
 const collectionsObserver = {
     next: async ([ req, res ]) => {
       const data = await batch.append('collections', 'update', Array.of(req.body));
-      console.log(`› Added collection ${data.length} to batch.`);
+      console.log(`› Added collection ${data.length} to batch for update.`);
       res.status(202).send(data);
       clearTimeout(timer);
       timer = setTimeout(() => { onComplete$.subscribe(collectionsObserver); }, batch.interval()); 
@@ -511,7 +541,7 @@ const collectionsObserver = {
     complete: async () => {
       const data = await batch.get('collections', 'update');
       processCollections(data, 'update');
-      console.log(`› Successfully batch processed ${data.length} collection${data.length > 1 ? '' : 's'}.`);
+      console.log(`› Successfully batch updated ${data.length} collection${data.length > 1 ? '' : 's'}.`);
       await batch.clear('collections', 'update');
       clearTimeout(timer);
     }
@@ -551,7 +581,7 @@ module.exports = {
             let data = [];
             await batch.size(kind, op) === 0 && console.log(`Processing batch create request of ${records[0].batchSize} ${kind}…`);
             data = await batch.append(op, kind, records);
-            console.log(`› Added ${kind.substr(0, kind.length - 1)} ${data.length} of ${records[0].batchSize} to batch.`);
+            console.log(`› Added ${kind.substr(0, kind.length - 1)} ${data.length} of ${records[0].batchSize} to batch for creation.`);
             
             if (await batch.size(kind, op) >= records[0].batchSize) {
               await batch.clear(kind, op);
@@ -565,7 +595,7 @@ module.exports = {
                 default:
                   return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
               }
-              console.log(`› Successfully batch processed ${records[0].batchSize} ${kind}.`);
+              console.log(`› Successfully batch created ${records[0].batchSize} ${kind}.`);
             } else {
               return res.status(202).send(data);
             }
@@ -581,7 +611,7 @@ module.exports = {
               default:
                 return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
             }
-            console.log(`› Successfully processed the new ${kind.substr(0, kind.length - 1)}.`);
+            console.log(`› Successfully created the new ${kind.substr(0, kind.length - 1)}.`);
           }
           break;
         case 'update':
@@ -598,6 +628,25 @@ module.exports = {
               break;
             default:
               return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
+          }
+          break;
+        case 'delete':
+          if (records[0].batch && records[0].batchSize > 50) {
+            let data = [];
+            await batch.size(kind, op) === 0 && console.log(`Processing batch delete request of ${records[0].batchSize} ${kind}…`);
+            data = await batch.append(op, kind, records);
+            console.log(`› Added ${kind.substr(0, kind.length - 1)} ${data.length} of ${records[0].batchSize} to batch for deletion.`);
+            
+            if (await batch.size(kind, op) >= records[0].batchSize) {
+              await batch.clear(kind, op);
+              await deleteItems(data, kind, res);
+              console.log(`› Successfully batch deleted ${records[0].batchSize} ${kind}.`);
+            } else {
+              return res.status(202).send(data);
+            }
+          } else {
+            console.log(`Processing delete request for ${records.length} ${kind.substr(0, kind.length - 1)}${records.length === 1 ? '' : 's'}…`);
+            await deleteItems(records, kind, res);
           }
           break;
         default:
