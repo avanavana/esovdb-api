@@ -56,7 +56,6 @@ module.exports = {
    */
   
   clear: async (kind, op) => {
-    console.log('cleaning up batch…');
     await db.del(`batch:${kind}:${op}`);
   },
   

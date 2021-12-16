@@ -44,6 +44,16 @@ const middleware = {
     }
   },
   
+  auth: (req, res, next) => {
+    if (!req.headers['esovdb-key'] || req.headers['esovdb-key'] !== process.env.ESOVDB_KEY) {
+      console.error(`Unauthorized attempted access of ${req.path} without a valid ESOVDB key.`);
+      res.status(401).send('Unauthorized');
+    } else {
+      console.log('ESOVDB key validated.');
+      next();
+    }
+  },
+  
   allowCORS: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     next();
@@ -76,7 +86,7 @@ app.get('/esovdb/videos/youtube/:pg?', middleware.validateReq, (req, res) => {
  *  @callback esovdb.updateVideos
  */
 
-app.post('/esovdb/:table/update', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+app.post('/esovdb/:table/update', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   esovdb.updateTable(req, res);
 });
 
@@ -86,7 +96,7 @@ app.post('/esovdb/:table/update', [ middleware.validateReq, express.urlencoded({
  *  @callback zotero.sync
  */
 
-app.post('/zotero/:kind', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+app.post('/zotero/:kind', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/${req.params.kind}/create API request...`);
   zotero.sync(req, res, req.params.kind, 'create');
 });
@@ -98,7 +108,7 @@ app.post('/zotero/:kind', [ middleware.validateReq, express.urlencoded({ extende
  *  @callback zotero.sync
  */
 
-app.put('/zotero/:kind', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+app.put('/zotero/:kind', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/${req.params.kind}/update API request...`);
   zotero.sync(req, res, req.params.kind, 'update');
 });
@@ -112,7 +122,7 @@ app.options('/zotero/:kind', cors());
  *  @callback zotero.sync
  */
 
-app.delete('/zotero/:kind', [ middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+app.delete('/zotero/:kind', [ middleware.validateReq, middleware.auth, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing zotero/${req.params.kind}/delete API request...`);
   zotero.sync(req, res, req.params.kind, 'delete');
 });
@@ -123,7 +133,7 @@ app.delete('/zotero/:kind', [ middleware.validateReq, cors(), express.urlencoded
  *  @callback webhook.execute
  */
 
-app.post('/discord', [ middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
+app.post('/discord', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
   console.log(`Performing discord/userSubmission API request...`);
   const response = await webhook.execute(req.body, 'discord', 'userSubmission');
   if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.')
