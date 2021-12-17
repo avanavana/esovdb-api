@@ -456,7 +456,7 @@ const processItems = async (videos, op, res = null) => {
       } of ${queue} total to Zotero...`
     );
 
-    let { successful, unchanged, failed } = await postItems(items.splice(0, 50));
+    let { successful, unchanged, failed } = await postItems('items', items.splice(0, 50));
     if (successful.length > 0) posted = [ ...posted, ...successful ];
     totalSuccessful += successful.length;
     totalUnchanged += unchanged.length;
@@ -513,7 +513,7 @@ const onComplete$ = new Observable(subscriber => { subscriber.complete(); });
 /** @constant {Observer} itemsObserver - Subscribes to updates {@link stream} that are items. Observable generated from http PUT requests to '/zotero/items' */
 const itemsObserver = {
     next: async ([ req, res ]) => {
-      const data = await batch.append('items', 'update', Array.of(req.body));
+      const data = await batch.append('items', 'update', Array.isArray(req.body) ? req.body : Array.of(req.body));
       console.log(`› Added item ${data.length} to batch.`);
       res.status(202).send(data);
       clearTimeout(timer);
@@ -532,7 +532,7 @@ const itemsObserver = {
 /** @constant {Observer} collectionsObserver - Subscribes to updates {@link stream} that are collections. Observable generated from http PUT requests to '/zotero/collections' */
 const collectionsObserver = {
     next: async ([ req, res ]) => {
-      const data = await batch.append('collections', 'update', Array.of(req.body));
+      const data = await batch.append('collections', 'update', Array.isArray(req.body) ? req.body : Array.of(req.body));
       console.log(`› Added collection ${data.length} to batch for update.`);
       res.status(202).send(data);
       clearTimeout(timer);
