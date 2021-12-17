@@ -207,7 +207,6 @@ const formatItems = async (video, template) => {
   let extras = [];
   video.presenters = packageAuthors(video.presentersFirstName, video.presentersLastName);
   if (video.topic) extras.push({ title: 'Topic', value: video.topic });
-  if (video.tagsList) extras.push({ title: 'Tags', value: video.tagsList });
   if (video.location) extras.push({ title: 'Location', value: video.location });
   if (video.plusCode) extras.push({ title: 'Plus Code', value: video.plusCode });
   if (video.learnMore) extras.push({ title: 'Learn More', value: video.learnMore });
@@ -257,6 +256,8 @@ const formatItems = async (video, template) => {
     collections: topics.get(video.topic) ? [ topics.get(video.topic) ] : [],
     relations: {},
   };
+  
+  if (video.tags) payload.tags = video.tags.map((tag) => ({ tag }));
   
   if (video.zoteroKey && video.zoteroVersion) {
     payload.key = video.zoteroKey;
