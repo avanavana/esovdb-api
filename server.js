@@ -91,41 +91,25 @@ app.post('/esovdb/:table/update', [ middleware.validateReq, middleware.auth, exp
 });
 
 /**
- *  API POST endpoint for ESOVDB onCreateRecord automations
+ *  Combined API endpoints for ESOVDB POST (onCreateRecord), PUT (onUpdateRecord), OPTIONS (CORS pre-flight), and DELETE (onDeleteRecord) automations
  *  @requires zotero
  *  @callback zotero.sync
  */
 
-app.post('/zotero/:kind', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing zotero/${req.params.kind}/create API request...`);
-  zotero.sync(req, res, req.params.kind, 'create');
-});
-
-/**
- *  API PUT endpoint for ESOVDB onUpdateRecord automations
- *  @requires zotero
- *  @requires redis
- *  @callback zotero.sync
- */
-
-app.put('/zotero/:kind', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing zotero/${req.params.kind}/update API request...`);
-  zotero.sync(req, res, req.params.kind, 'update');
-});
-
-/** CORS Pre-flight options for DELETE routes */
-app.options('/zotero/:kind', cors());
-
-/**
- *  API DELETE endpoint for ESOVDB onDeleteRecord actions
- *  @requires zotero
- *  @callback zotero.sync
- */
-
-app.delete('/zotero/:kind', [ middleware.validateReq, middleware.auth, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing zotero/${req.params.kind}/delete API request...`);
-  zotero.sync(req, res, req.params.kind, 'delete');
-});
+app.route('/zotero/:kind')
+  .post([ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+    console.log(`Performing zotero/${req.params.kind}/create API request...`);
+    zotero.sync(req, res, req.params.kind, 'create');
+  })
+  .put([ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+    console.log(`Performing zotero/${req.params.kind}/update API request...`);
+    zotero.sync(req, res, req.params.kind, 'update');
+  })
+  .options(cors())
+  .delete([ middleware.validateReq, middleware.auth, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+    console.log(`Performing zotero/${req.params.kind}/delete API request...`);
+    zotero.sync(req, res, req.params.kind, 'delete');
+  });
 
 /**
  *  API POST endpoint for handling new submissions from the ESOVDB Discord #submissions channel
@@ -133,12 +117,30 @@ app.delete('/zotero/:kind', [ middleware.validateReq, middleware.auth, cors(), e
  *  @callback webhook.execute
  */
 
-app.post('/discord', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
-  console.log(`Performing discord/userSubmission API request...`);
+app.post('webhook/discord', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
+  console.log(`Performing webhook/discord/userSubmission API request...`);
   const response = await webhook.execute(req.body, 'discord', 'userSubmission');
   if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.')
   res.status(200).send(response.config.data)
 });
+
+/**
+ *  Combined API endpoints for handling new submissions sent to the ESOVDB Twitter account, @esovdb with a hashtag of #submit, as well as Twitter's webhook verification
+ *  @requires webhook
+ *  @callback webhook.execute
+ */
+
+app.route('webhook/twitter')
+  .all([ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res, next) => { next(); })
+  .post(async (req, res) => {
+    console.log(`Performing webhook/twitter API request...`);
+    const response = await webhook.execute(req.body, 'twitter', '{event.type}');
+    if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Twitter webhook event.')
+    res.status(200).send(response.config.data)
+  })
+  .get(async (req, res) => {
+    res.status(200).send('OK (Placeholder)');
+  });
 
 /**
  *  API endpoint which is the end of all other endpoints
