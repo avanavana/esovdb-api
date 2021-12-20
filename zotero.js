@@ -319,6 +319,7 @@ const broadcastItems = async (channel, videos) => {
       }
 
       if (results && results.config.data) console.log(`› Successfully posted to ESOVDB Discord in #whats-new.`);
+      else throw new Error('[ERROR] Unable to post to ESOVDB Discord in #whats-new.');
       break;
     case 'twitter':
       console.log('Tweeting new items from @esovdb...');
@@ -330,6 +331,7 @@ const broadcastItems = async (channel, videos) => {
       }
 
       if (results && results.id) console.log(`› Successfully tweeted from @esovdb.`);
+      else throw new Error('[ERROR] Unable to tweet from @esovdb.');
       break;
     default:
       throw new Error('[ERROR] Unknown or invalid broadcast channel.');
