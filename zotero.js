@@ -323,10 +323,10 @@ const broadcastItems = async (channel, videos) => {
     case 'twitter':
       console.log('Tweeting new items from @esovdb...');
 
-      if (posted.length > 1) {
-        results = await twitter.batchTweet(posted);
+      if (videos.length > 1) {
+        results = await twitter.batchTweet(videos);
       } else {
-        results = await twitter.tweet(posted[0].data);
+        results = await twitter.tweet(videos[0].data);
       }
 
       if (results && results.id) console.log(`› Successfully tweeted from @esovdb.`);
