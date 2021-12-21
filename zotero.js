@@ -404,7 +404,7 @@ const processCollections = async (series, op, res = null) => {
       id: series.filter((s) => s.name === collection.name)[0].id,
       fields: {
         'Zotero Key': collection.key,
-        'Zotero Version': collection.version,
+        'Zotero Version': collection.version
       }
     }));
 

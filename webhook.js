@@ -98,7 +98,7 @@ const itemToDiscord = (text, item) => {
   if (stringifyCreators(item.creators) !== 'Unknown') draft.embeds[0].fields.push({ 'name': 'Presenter(s)', 'value': stringifyCreators(item.creators) });
   if (item.seriesTitle) draft.embeds[0].fields.push({ 'name': 'Series', 'value': `${item.seriesTitle} ${item.volume ? '(Vol. ' + item.volume + ')' : '' }`});
   if (item.studio !== 'Independent') draft.embeds[0].fields.push({ 'name': 'Publisher', 'value': item.studio });
-  if (regexTags.test(item.extra)) draft.embeds[0].fields.push({ 'name': 'Tags', 'value': item.extra.match(regexTags)[1] });
+  if (item.tags && item.tags.length > 0) draft.embeds[0].fields.push({ 'name': 'Tags', 'value': item.tags.map((item) => item.tag).join(', ') });
   if (regexLearnMore.test(item.extra)) draft.embeds[0].fields.push({ 'name': 'Learn More', 'value': item.extra.match(regexLearnMore)[1] });
   return draft;
 }
