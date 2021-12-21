@@ -308,33 +308,35 @@ const formatItems = async (video, template) => {
 const broadcastItems = async (channel, videos) => {
   let results;
   
-  switch (channel) {
-    case 'discord':
-      console.log('Posting new items to Discord in the #whats-new channel...');
-      
-      if (videos.length > 1) {
-        results = await webhook.execute(videos, 'discord', 'newSubmissionTotal')
-      } else {
-        results = await webhook.execute(videos[0].data, 'discord', 'newSubmission');
-      }
+  if (videos.length > 0) {
+    switch (channel) {
+      case 'discord':
+        console.log('Posting new items to Discord in the #whats-new channel...');
 
-      if (results && results.config.data) console.log(`› Successfully posted to ESOVDB Discord in #whats-new.`);
-      else throw new Error('[ERROR] Unable to post to ESOVDB Discord in #whats-new.');
-      break;
-    case 'twitter':
-      console.log('Tweeting new items from @esovdb...');
+        if (videos.length > 1) {
+          results = await webhook.execute(videos, 'discord', 'newSubmissionTotal')
+        } else {
+          results = await webhook.execute(videos[0].data, 'discord', 'newSubmission');
+        }
 
-      if (videos.length > 1) {
-        results = await twitter.batchTweet(videos);
-      } else {
-        results = await twitter.tweet(videos[0].data);
-      }
+        if (results && results.config.data) console.log(`› Successfully posted to ESOVDB Discord in #whats-new.`);
+        else throw new Error('[ERROR] Unable to post to ESOVDB Discord in #whats-new.');
+        break;
+      case 'twitter':
+        console.log('Tweeting new items from @esovdb...');
 
-      if (results && results.id) console.log(`› Successfully tweeted from @esovdb.`);
-      else throw new Error('[ERROR] Unable to tweet from @esovdb.');
-      break;
-    default:
-      throw new Error('[ERROR] Unknown or invalid broadcast channel.');
+        if (videos.length > 1) {
+          results = await twitter.batchTweet(videos);
+        } else {
+          results = await twitter.tweet(videos[0].data);
+        }
+
+        if (results && results.id) console.log(`› Successfully tweeted from @esovdb.`);
+        else throw new Error('[ERROR] Unable to tweet from @esovdb.');
+        break;
+      default:
+        throw new Error('[ERROR] Unknown or invalid broadcast channel.');
+    }
   }
 }
 
