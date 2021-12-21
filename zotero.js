@@ -482,7 +482,7 @@ const processItems = async (videos, op, res = null) => {
     }));
 
     if (op === 'create') {
-      const itemsToBroadcast = posted.map((item) => ( { data: { ...item.data, featured: videos.filter((video) => video.esovdbId === item.data.callNumber).featured }}));
+      const itemsToBroadcast = posted.map((item) => ( { data: { ...item.data, muted: videos.filter((video) => video.esovdbId === item.data.callNumber).muted, featured: videos.filter((video) => video.esovdbId === item.data.callNumber).featured }})).filter((item) => !item.muted);
       await broadcastItems('discord', itemsToBroadcast);
       await broadcastItems('twitter', itemsToBroadcast);
     }
