@@ -388,7 +388,7 @@ const processCollections = async (series, op, res = null) => {
     );
     
     let { successful, unchanged, failed } = await postItems('collections', collections.splice(0, 50));
-    if (successful.length > 0) posted = [ ...posted, ...successful ];
+    if (successful && successful.length > 0) posted = [ ...posted, ...successful ];
     totalSuccessful += successful.length;
     totalUnchanged += unchanged.length;
     totalFailed += failed.length;
@@ -461,7 +461,7 @@ const processItems = async (videos, op, res = null) => {
     );
 
     let { successful, unchanged, failed } = await postItems('items', items.splice(0, 50));
-    if (successful.length > 0) posted = [ ...posted, ...successful ];
+    if (successful && successful.length > 0) posted = [ ...posted, ...successful ];
     totalSuccessful += successful.length;
     totalUnchanged += unchanged.length;
     totalFailed += failed.length;
@@ -484,7 +484,7 @@ const processItems = async (videos, op, res = null) => {
     }));
 
     if (op === 'create') {
-      const itemsToBroadcast = posted.map((item) => ( { data: { ...item.data, muted: videos.filter((video) => video.esovdbId === item.data.callNumber).muted, featured: videos.filter((video) => video.esovdbId === item.data.callNumber).featured }})).filter((item) => !item.muted);
+      const itemsToBroadcast = posted.map((item) => ( { data: { ...item.data, muted: videos.filter((video) => video.esovdbId === item.data.callNumber).shift().muted, featured: videos.filter((video) => video.esovdbId === item.data.callNumber).shift().featured }})).filter((item) => !item.data.muted);
       await broadcastItems('discord', itemsToBroadcast);
       await broadcastItems('twitter', itemsToBroadcast);
     }
