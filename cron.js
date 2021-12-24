@@ -11,9 +11,9 @@ const esovdb = require('./esovdb');
 const randomNode = (range) => Math.floor(Math.random() * range);
 
 module.exports = {
-  getLatest: cron.schedule('0 0 * * *', () =>  {
+  getLatest: cron.schedule('0 0 * * *', async () =>  {
     console.log('Performing daily cache of recently modified videos…');
-    esovdb.updateLatest();
+    await esovdb.updateLatest();
   },{
     scheduled: false
   }),
