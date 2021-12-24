@@ -386,14 +386,14 @@ module.exports = {
   updateLatest: async (useCache = true) => {
     let result, lastTime = new Date(); lastTime.setHours(0); lastTime.setMinutes(0); lastTime.setSeconds(0); lastTime.setMilliseconds(0); lastTime.setDate(lastTime.getDate() - 1);
     const modifiedAfter = encodeURIComponent(lastTime.toLocaleString());
-    const existing = cache.readCacheWithPath('.cache/videos/query/all.json', false);
-    const cachedModified = useCache ? cache.readCacheWithPath('.cache/videos/query/latest.json') : null;
-    const modified = cachedModified ? cachedModified : await module.exports.queryVideos({ url: '/videos/query/latest', query: { modifiedAfter } });
+    const existing = cache.readCacheWithPath('.cache/v1/videos/query/all.json', false);
+    const cachedModified = useCache ? cache.readCacheWithPath('.cache/v1/videos/query/latest.json') : null;
+    const modified = cachedModified ? cachedModified : await module.exports.queryVideos({ url: 'v1/videos/query/latest', query: { modifiedAfter } });
     await sleep(5);
 
     if (modified.length > 0) {
       result = [ ...existing.filter((e) => !modified.some((m) => m.recordId === e.recordId)), ...modified ].sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified));
-      cache.writeCacheWithPath('.cache/videos/query/all.json', result);
+      cache.writeCacheWithPath('.cache/v1/videos/query/all.json', result);
       console.log('› Overwrote existing video data with modified videos and rewrote cache.');
     } else {
       result = existing;
