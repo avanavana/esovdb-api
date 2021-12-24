@@ -21,9 +21,10 @@ Run with `npm start` (or better yet, install [`pm2`](https://github.com/Unitech/
 - Supply a list of space-separated IP addresses with optional wildcards (e.g. 255.255.\*.\*) in your dotenv or elsewhere and limit access to endpoints using an API key by passing included middleware
 - Syncs videos and series created, updated, and deleted in Airtable with equivalent items and collections in a public Zotero library.
 
-I will probably not update the guts too much more after the last item above, because this is meant to be a lightweight solution and it already works well and soon will fulfill all my own requirements.
+## Consuming the ESOVDB API
+If you wish to query the ESOVDB using this API, you can do so using [Rapid API](https://rapidapi.com/the-earth-science-online-video-database-the-earth-science-online-video-database-default/api/the-earth-science-online-video-database/).  A free plan offers limited retrieval of all records, while a "PRO" plan offers far fewer limitations on quota/rate, and alwasy returns fresh (non-cached) results.
 
-## Pre-configured Endpoints
+## Adapting this project to your own
 I built this for my own needs, and the following are the endpoints I use, but these can be removed or adapted to your own needs for any Airtable implementation alone, or with additional synchronization to Zotero, as I do.
 
 ### `GET` /videos
