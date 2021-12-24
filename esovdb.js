@@ -177,7 +177,7 @@ module.exports = {
                     topic: record.get('Topic'),
                     learnMore: record.get('Learn More'),
                     series: record.get('Series Text') || '',
-                    seriesCount: record.get('Series Count Text') || '',
+                    seriesCount: +record.get('Series Count Text') || '',
                     vol: record.get('Vol.') || '',
                     no: record.get('No.') || '',
                     publisher: record.get('Publisher Text') || '',
