@@ -9,7 +9,7 @@ const dotenv = require('dotenv').config();
 const Airtable = require('airtable');
 const Bottleneck = require('bottleneck');
 const cache = require('./cache');
-const { formatDuration, formatDate, packageAuthors } = require('./util');
+const { formatDuration, formatDate, packageAuthors, sleep } = require('./util');
 
 const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
@@ -35,23 +35,27 @@ const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 module.exports = {
   
   /**
-   *  Retrieves a list of videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query, page by page {@link req.query.pageSize} videos at a time (default=100), until all or {@link req.query.maxRecords}, if specified, using Botleneck for rate-limiting.  
+   *  Retrieves a query of videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query, page by page {@link req.query.pageSize} videos at a time (default=100), until all or {@link req.query.maxRecords}, if specified, using Botleneck for rate-limiting.  
    *
-   *  @method listVideos
+   *  @method queryVideos
    *  @requires Airtable
    *  @requires Bottleneck
    *  @requires cache
    *  @requires util
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
-   *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/list, which specifies which page (one-indexed) of a given {@link pageSize} number records should be sent in the [server response]{@link res}
+   *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/query, which specifies which page (one-indexed) of a given {@link pageSize} number records should be sent in the [server response]{@link res}
    *  @param {number} [req.query.pageSize=100] - An [http request]{@link req} URL query param that specifies how many Airtable records to return in each API call
    *  @param {?number} [req.query.maxRecords] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
    *  @param {?string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
    *  @param {?string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
-   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
+   *  @param {(!express:Response|Boolean)} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class, or false if not passed
+   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript object
+   *  @returns {Object[]} Array of ESOVDB video records as JavaScript objects (if no {@link res} object is provided)
    */
   
-  listVideos: (req, res) => {
+  queryVideos: (req, res = false) => {
+    if (!req.params) req.params = {};
+    if (!req.query) req.query = {};
     req.params.pg = !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 ? null : +req.params.pg - 1;
     
     if (!req.query.pageSize || !Number(req.query.pageSize || req.query.pageSize > 100)) {
@@ -96,14 +100,15 @@ module.exports = {
     queryText += modifiedAfterDate ? ', modified after ' + modifiedAfterDate.toLocaleString() : '';
     queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
     
-    console.log(`Performing videos/list API request ${queryText}...`);
+    console.log(`Performing videos/query ${res ? 'external' : 'internal'} API request ${queryText}…`);
 
     const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
 
     if (cachedResult !== null) {
       console.log('Cache hit. Returning cached result for ' + req.url);
-      res.status(200).send(JSON.stringify(cachedResult));
+      if (res) res.status(200).send(JSON.stringify(cachedResult));
+      else return cachedResult;
     } else {
       console.log('Cache miss. Loading from Airtable for ' + req.url);
 
@@ -156,7 +161,7 @@ module.exports = {
           .eachPage(
             function page(records, fetchNextPage) {
               if (!req.params.pg || pg == req.params.pg) {
-                console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}...`);
+                console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}…`);
                 
                 records.forEach((record) => {
                   let row = {
@@ -197,7 +202,7 @@ module.exports = {
                 if (pg == req.params.pg) {
                   console.log(`[DONE] Retrieved ${data.length} records.`);
                   cache.writeCacheWithPath(cachePath, data);
-                  res.status(200).send(JSON.stringify(data));
+                  if (res) return res.status(200).send(JSON.stringify(data));
                 } else {
                   console.log(`Successfully retrieved ${records.length} records.`);
                 }
@@ -212,45 +217,54 @@ module.exports = {
             function done(err) {
               if (err) {
                 console.error(err);
-                res.status(400).end(JSON.stringify(err));
+                if (res) res.status(400).end(JSON.stringify(err));
+                else throw new Error(err.message);
               } else {
                 console.log(`[DONE] Retrieved ${data.length} records.`);
                 cache.writeCacheWithPath(cachePath, data);
-                res.status(200).send(JSON.stringify(data));
+                if (res) return res.status(200).send(JSON.stringify(data));
               }
             }
           )
       );
+      
+      if (!res) return data;
     }
   },
   
   /**
-   *  Retrieves a list of YouTube videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query for 200 videos (the maximum that can be uploaded to a YouTube playlist in a day), 100 videos at a time, sorted by oldest first, using Botleneck for rate-limiting.  
+   *  Retrieves a query of YouTube videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query for 200 videos (the maximum that can be uploaded to a YouTube playquery in a day), 100 videos at a time, sorted by oldest first, using Botleneck for rate-limiting.  
    *
-   *  @method listYouTubeVideos
+   *  @method queryYouTubeVideos
    *  @requires Airtable
    *  @requires Bottleneck
    *  @requires cache
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
-   *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/youtube, which specifies which page (one-based) the [server response]{@link res} should start from—every response sends two pages of 100 records each, for a maximum of 200 (based on YouTube's quota for adding to playlists)
+   *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/youtube, which specifies which page (one-based) the [server response]{@link res} should start from—every response sends two pages of 100 records each, for a maximum of 200 (based on YouTube's quota for adding to playquerys)
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
+   *  @param {(!express:Response|Boolean)} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class, or false if not passed
+   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript object
+   *  @returns {Object[]} Array of ESOVDB YouTube video records as JavaScript objects (if no {@link res} object is provided)
    */
   
-  listYouTubeVideos: (req, res) => {
+  queryYouTubeVideos: (req, res = null) => {
+    if (!req.params) req.params = {};
+    if (!req.query) req.query = {};
     req.params.pg = !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 ? null : +req.params.pg - 1;
     
     let queryText = req.params.pg !== null
       ? `for pages ${req.params.pg + 1}-${req.params.pg + 2}, 100 records per page`
       : 'for all records, 100 at a time';
     
-    console.log(`Performing videos/youtube API request ${queryText}...`);
+    console.log(`Performing videos/youtube ${res ? 'external' : 'internal'} API request ${queryText}…`);
 
     const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
 
     if (cachedResult !== null) {
       console.log('Cache hit. Returning cached result for ' + req.url);
-      res.status(200).send(JSON.stringify(cachedResult));
+      if (res) res.status(200).send(JSON.stringify(cachedResult));
+      else return cachedResult;
     } else {
       console.log('Cache miss. Loading from Airtable for ' + req.url);
 
@@ -278,7 +292,7 @@ module.exports = {
           .eachPage(
             function page(records, fetchNextPage) {
               if (!req.params.pg || pg == req.params.pg) {
-                console.log(`Retrieving records ${pg * 100 + 1}-${(pg + 1) * 100}...`);
+                console.log(`Retrieving records ${pg * 100 + 1}-${(pg + 1) * 100}…`);
 
                 records.forEach((record) => {
                   let row = {
@@ -302,15 +316,18 @@ module.exports = {
             function done(err) {
               if (err) {
                 console.error(err);
-                res.status(400).end(JSON.stringify(err));
+                if (res) res.status(400).end(JSON.stringify(err));
+                else throw new Error(err.message);
               } else {
                 console.log(`[DONE] Retrieved ${data.length} records.`);
                 cache.writeCacheWithPath(cachePath, data);
-                res.status(200).send(JSON.stringify(data));
+                if (res) return res.status(200).send(JSON.stringify(data));
               }
             }
           )
       );
+      
+      if (!res) return data;
     }
   },
   
@@ -339,7 +356,7 @@ module.exports = {
                 ? updates.length
                 : 10)
             : ''
-        } of ${queue} total...`
+        } of ${queue} total…`
       );
 
       i++, rateLimiter.wrap(base(table).update(updates.splice(0, 10)));
@@ -352,7 +369,7 @@ module.exports = {
    *  Passes the body of an HTTP POST request to this server on to {@link processUpdates} for updating records on Airtable and sends a 200 server response with the array of objects originally passed to it in the [request body]{@link req.body}.
    *
    *  @async
-   *  @method updateVideos
+   *  @method updateTable
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {Object[]} req.body - An array of objects formatted as updates for Airtable (i.e. [ { id: 'recordId', fields: { 'Airtable Field': 'value', ... } }, ... ]) passed as the body of the [server request]{@link req}
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
@@ -360,9 +377,42 @@ module.exports = {
   
   updateTable: async (req, res) => {
     if (req.body.length > 0) {
-      console.log(`Performing ${req.params.table}/update API request for ${req.body.length} record${req.body.length === 1 ? '' : 's'}...`);
+      console.log(`Performing ${req.params.table}/update API request for ${req.body.length} record${req.body.length === 1 ? '' : 's'}…`);
       const data = await module.exports.processUpdates(req.body, tables.get(req.params.table));
       res.status(200).send(JSON.stringify(data));
+    }
+  },
+  
+  updateLatest: async (useCache = true) => {
+    let result, lastTime = new Date(); lastTime.setHours(0); lastTime.setMinutes(0); lastTime.setSeconds(0); lastTime.setMilliseconds(0); lastTime.setDate(lastTime.getDate() - 1);
+    const modifiedAfter = encodeURIComponent(lastTime.toLocaleString());
+    const existing = cache.readCacheWithPath('.cache/videos/query/all.json', false);
+    const cachedModified = useCache ? cache.readCacheWithPath('.cache/videos/query/latest.json') : null;
+    const modified = cachedModified ? cachedModified : await module.exports.queryVideos({ url: '/videos/query/latest', query: { modifiedAfter } });
+    await sleep(5);
+
+    if (modified.length > 0) {
+      result = [ ...existing.filter((e) => !modified.some((m) => m.recordId === e.recordId)), ...modified ].sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified));
+      cache.writeCacheWithPath('.cache/videos/query/all.json', result);
+      console.log('› Overwrote existing video data with modified videos and rewrote cache.');
+    } else {
+      result = existing;
+      console.log('› Retrieved existing video data, no new videos to cache.');
+    }
+    
+    console.log(`[DONE] Successfully retrieved ${result.length} videos.`);
+    return result;
+  },
+  
+  getLatest: async (req, res = false) => {
+    try {
+      console.log(`Performing videos/all ${res ? 'external' : 'internal'} API request…`);
+      const latest = await module.exports.updateLatest(req.headers['esovdb-no-cache'] === process.env.ESOVDB_NO_CACHE ? false : true);
+      if (res) res.status(200).send(JSON.stringify(latest));
+      else return latest;
+    } catch (err) {
+      if (res) res.status(400).end(JSON.stringify(err));
+      else throw new Error(err.message);
     }
   }
 };

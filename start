@@ -12,6 +12,7 @@
 REDIS_DIR="~/workspace/redis-stable"
 SERVER_DIR="~/workspace"
 
+# - required on my particular VM setup, which keeps resetting the node version
 nvm use 14.15.1
 
 [ ! -z "$(ps -ax | grep pm2 | grep -v grep)" ] && pm2 stop "${SERVER_DIR}/server.js";
@@ -20,7 +21,7 @@ nvm use 14.15.1
 redis-server "${REDIS_DIR}/redis.conf" &
 
 if [[ `redis-cli ping` = 'PONG' ]]; then 
-  pm2 start "${SERVER_DIR}/server.js" -i 3 --wait-ready --listen-timeout 3000 --kill-timeout 6000
+  pm2 start "${SERVER_DIR}/server.js" -i 3 --wait-ready --listen-timeout 3000 --kill-timeout 6000 --update-env
 else
   echo "Redis server is not running."
   exit 111

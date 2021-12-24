@@ -10,6 +10,7 @@ const cleanUp = require('node-cleanup');
 const cors = require('cors');
 const { db, monitor } = require('./batch');
 const { appReady, patternsToRegEx } = require('./util');
+const cron = require('./cron');
 const esovdb = require('./esovdb');
 const webhook = require('./webhook');
 const zotero = require('./zotero');
@@ -19,7 +20,7 @@ const app = express();
 const middleware = {
   
   /**
-   *  Middleware for blacklisting or whitelisting IP addresses and/or IP address ranges, which can be passed to specific endpoints
+   *  Middleware for blackquerying or whitequerying IP addresses and/or IP address ranges, which can be passed to specific endpoints
    *
    *  @method validateReq
    *  @requires util.patternsToRegEx
@@ -61,23 +62,33 @@ const middleware = {
 }
 
 /**
- *  API endpoint for querying the ESOVDB, returns JSON. All request params and request query params documented in [esovdb.listVideos]{@link esovdb.listVideos}.
+ *  API endpoint for querying the entire ESOVDB, returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
  *  @requires esovdb
- *  @callback esovdb.listVideos
+ *  @callback esovdb.getLatest
  */
 
-app.get('/esovdb/videos/list/:pg?', middleware.validateReq, (req, res) => {
-  esovdb.listVideos(req, res);
+app.get('/videos', middleware.validateReq, async (req, res) => {
+  await esovdb.getLatest(req, res);
 });
 
 /**
- *  API endpoint for querying the ESOVDB for syncing with YouTube, returns simplified JSON. All request params and request query params documented in [esovdb.listYouTubeVideos]{@link esovdb.listYouTubeVideos}.
+ *  API endpoint for querying the ESOVDB, returns JSON. All request params and request query params documented in [esovdb.queryVideos]{@link esovdb.queryVideos}.
  *  @requires esovdb
- *  @callback esovdb.listYouTubeVideos
+ *  @callback esovdb.queryVideos
  */
 
-app.get('/esovdb/videos/youtube/:pg?', middleware.validateReq, (req, res) => {
-  esovdb.listYouTubeVideos(req, res);
+app.get('/videos/query/:pg?', middleware.validateReq, (req, res) => {
+  esovdb.queryVideos(req, res);
+});
+
+/**
+ *  API endpoint for querying the ESOVDB for syncing with YouTube, returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideos]{@link esovdb.queryYouTubeVideos}.
+ *  @requires esovdb
+ *  @callback esovdb.queryYouTubeVideos
+ */
+
+app.get('/videos/youtube/:pg?', middleware.validateReq, (req, res) => {
+  esovdb.queryYouTubeVideos(req, res);
 });
 
 /**
@@ -86,7 +97,7 @@ app.get('/esovdb/videos/youtube/:pg?', middleware.validateReq, (req, res) => {
  *  @callback esovdb.updateVideos
  */
 
-app.post('/esovdb/:table/update', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+app.post('/:table/update', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   esovdb.updateTable(req, res);
 });
 
@@ -117,7 +128,7 @@ app.route('/zotero/:kind')
  *  @callback webhook.execute
  */
 
-app.post('webhook/discord', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
+app.post('/webhook/discord', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
   console.log(`Performing webhook/discord/userSubmission API request...`);
   const response = await webhook.execute(req.body, 'discord', 'userSubmission');
   if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.')
@@ -130,7 +141,7 @@ app.post('webhook/discord', [ middleware.validateReq, middleware.auth, express.u
  *  @callback webhook.execute
  */
 
-app.route('webhook/twitter')
+app.route('/webhook/twitter')
   .all([ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res, next) => { next(); })
   .post(async (req, res) => {
     console.log(`Performing webhook/twitter API request...`);
@@ -157,13 +168,14 @@ app.get('/*', (req, res) => {
 
 /**
  *  Starts server on port 3000, my particular setup requires a host of '0.0.0.0', but you can put anything you want here or leave the host argument out.
- *  @callback - Logs the start of the server session and port on which the server is listening.
+ *  @callback - Logs the start of the server session and port on which the server is listen.
  */
 
 const listener = app.listen(3000, '0.0.0.0', async () => {
-  monitor.ping({ state: 'ok', message: 'API server listening on port 3000.' });
+  monitor.ping({ state: 'ok', message: 'API server listen on port 3000.' });
   await db.connect();
-  console.log('API proxy listening on port ' + listener.address().port);
+  cron.startJobs([ cron.getLatest ]);
+  console.log('API proxy listen on port ' + listener.address().port);
 });
 
 /**
@@ -171,7 +183,7 @@ const listener = app.listen(3000, '0.0.0.0', async () => {
  *  @requires util
  */
 
-appReady(() => { monitor.ping({ state: 'run', message: 'API Server (re)started.' })});
+appReady(() => { monitor.ping({ state: 'run', message: 'API Server (re)started.' }); });
 
 /**
  *  Instance of node-cleanup, for graceful shutdown of server.
@@ -180,5 +192,6 @@ appReady(() => { monitor.ping({ state: 'run', message: 'API Server (re)started.'
 
 cleanUp(async (code, signal) => {
   await db.quit();
+  cron.destroyJobs();
   monitor.ping({ status: 'complete', message: 'API server shut down.' })
 });

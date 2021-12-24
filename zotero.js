@@ -425,7 +425,7 @@ const processCollections = async (series, op, res = null) => {
 }
 
 /**
- *  Takes a single ESOVDB video record or an array of ESOVDB video records from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero/items API endpoint, retrieves a new item template from the Zotero API using {@link getTemplate}, maps those requested video objects to an array valid new or updated Zotero items (depending on whether a Zotero key and version are passed) using {@link formatItems}, attempts to POST that array of formatted items to a Zotero library using {@link postItems}, and then syncs the updated Zotero version (if updated) or newly acquired Zotero key and version (if created) back with the ESOVDB for each item successfully posted to the Zotero library, using {@link updateTable}, sending a server response of 200 with the JSON of any successfully updated/added items.
+ *  Takes a single ESOVDB video record or an array of ESOVDB video records from Airtable sent through either POST or PUT [requests]{@link req} to this server's zotero/items API endpoint, retrieves a new item template from the Zotero API using {@link getTemplate}, maps those requested video objects to an array valid new or updated Zotero items (depending on whether a Zotero key and version are passed) using {@link formatItems}, attempts to POST that array of formatted items to a Zotero library using {@link postItems}, and then syncs the updated Zotero version (if updated) or newly acquired Zotero key and version (if created) back with the ESOVDB for each item successfully posted to the Zotero library, using {@link updateTable}, sending a server response of 200 with the JSON of any successfully updated/added items.
  *
  *  @async
  *  @function processItems

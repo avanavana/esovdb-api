@@ -56,13 +56,14 @@ module.exports = {
    *  @returns {?Object} Returns cache JSON data as an object if it exists and is still fresh, else null
    */
   
-  readCacheWithPath: (path) => {
-    let stale = true;
-    path = path.replace('?', '/');
-    
-    if (fs.existsSync(path)) {
-      const cachedTime = fs.statSync(path).ctime;
-      stale = (new Date().getTime() - cachedTime) / 1000 > cacheInterval ? true : false;
+  readCacheWithPath: (path, stale = true) => {
+    if (stale) {
+      path = path.replace('?', '/');
+
+      if (fs.existsSync(path)) {
+        const cachedTime = fs.statSync(path).ctime;
+        stale = (new Date().getTime() - cachedTime) / 1000 > cacheInterval ? true : false;
+      }
     }
 
     return stale ? null : JSON.parse(fs.readFileSync(path, 'utf8'));
