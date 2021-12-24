@@ -67,7 +67,7 @@ const middleware = {
  *  @callback esovdb.getLatest
  */
 
-app.get('/v1/videos', [ middleware.validateReq, middleware.auth ], async (req, res) => {
+app.get('/v1/videos', [ middleware.auth, middleware.validateReq ], async (req, res) => {
   await esovdb.getLatest(req, res);
 });
 
@@ -77,7 +77,7 @@ app.get('/v1/videos', [ middleware.validateReq, middleware.auth ], async (req, r
  *  @callback esovdb.queryVideos
  */
 
-app.get('/v1/videos/query/:pg?', [ middleware.validateReq, middleware.auth ], (req, res) => {
+app.get('/v1/videos/query/:pg?', [ middleware.auth, middleware.validateReq ], (req, res) => {
   esovdb.queryVideos(req, res);
 });
 
@@ -87,7 +87,7 @@ app.get('/v1/videos/query/:pg?', [ middleware.validateReq, middleware.auth ], (r
  *  @callback esovdb.queryYouTubeVideos
  */
 
-app.get('/v1/videos/youtube/:pg?', [ middleware.validateReq, middleware.auth ], (req, res) => {
+app.get('/v1/videos/youtube/:pg?', [ middleware.auth, middleware.validateReq ], (req, res) => {
   esovdb.queryYouTubeVideos(req, res);
 });
 
@@ -97,7 +97,7 @@ app.get('/v1/videos/youtube/:pg?', [ middleware.validateReq, middleware.auth ], 
  *  @callback esovdb.updateVideos
  */
 
-app.post('/:table/update', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+app.post('/:table/update', [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   esovdb.updateTable(req, res);
 });
 
@@ -108,16 +108,16 @@ app.post('/:table/update', [ middleware.validateReq, middleware.auth, express.ur
  */
 
 app.route('/zotero/:kind')
-  .post([ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  .post([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
     console.log(`Performing zotero/${req.params.kind}/create API request...`);
     zotero.sync(req, res, req.params.kind, 'create');
   })
-  .put([ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  .put([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
     console.log(`Performing zotero/${req.params.kind}/update API request...`);
     zotero.sync(req, res, req.params.kind, 'update');
   })
   .options(cors())
-  .delete([ middleware.validateReq, middleware.auth, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  .delete([ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
     console.log(`Performing zotero/${req.params.kind}/delete API request...`);
     zotero.sync(req, res, req.params.kind, 'delete');
   });
@@ -128,7 +128,7 @@ app.route('/zotero/:kind')
  *  @callback webhook.execute
  */
 
-app.post('/webhook/discord', [ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
+app.post('/webhook/discord', [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
   console.log(`Performing webhook/discord/userSubmission API request...`);
   const response = await webhook.execute(req.body, 'discord', 'userSubmission');
   if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.')
@@ -142,7 +142,7 @@ app.post('/webhook/discord', [ middleware.validateReq, middleware.auth, express.
  */
 
 app.route('/webhook/twitter')
-  .all([ middleware.validateReq, middleware.auth, express.urlencoded({ extended: true }), express.json() ], (req, res, next) => { next(); })
+  .all([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res, next) => { next(); })
   .post(async (req, res) => {
     console.log(`Performing webhook/twitter API request...`);
     const response = await webhook.execute(req.body, 'twitter', '{event.type}');
