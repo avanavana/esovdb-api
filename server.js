@@ -46,9 +46,9 @@ const middleware = {
   },
   
   auth: (req, res, next) => {
-    if (!req.headers['esovdb-key'] || req.headers['esovdb-key'] !== process.env.ESOVDB_KEY) {
+    if ((!req.headers['esovdb-key'] || !req.headers['X-RapidAPI-Proxy-Secret']) || (req.headers['esovdb-key'] !== process.env.ESOVDB_KEY || req.headers['X-RapidAPI-Proxy-Secret'] !== process.env.RAPIDAPI_SECRET)) {
       console.error(`Unauthorized attempted access of ${req.path} without a valid ESOVDB key.`);
-      res.status(401).send('Unauthorized');
+      res.status(401).send('Unauthorized access. Visit https://rapidapi.com/avanavana/api/the-earth-science-online-video-database for access.');
     } else {
       console.log('ESOVDB key validated.');
       next();
@@ -67,7 +67,7 @@ const middleware = {
  *  @callback esovdb.getLatest
  */
 
-app.get('/videos', middleware.validateReq, async (req, res) => {
+app.get('/v1/videos', [ middleware.validateReq, middleware.auth ], async (req, res) => {
   await esovdb.getLatest(req, res);
 });
 
@@ -77,7 +77,7 @@ app.get('/videos', middleware.validateReq, async (req, res) => {
  *  @callback esovdb.queryVideos
  */
 
-app.get('/videos/query/:pg?', middleware.validateReq, (req, res) => {
+app.get('/v1/videos/query/:pg?', [ middleware.validateReq, middleware.auth ], (req, res) => {
   esovdb.queryVideos(req, res);
 });
 
@@ -87,7 +87,7 @@ app.get('/videos/query/:pg?', middleware.validateReq, (req, res) => {
  *  @callback esovdb.queryYouTubeVideos
  */
 
-app.get('/videos/youtube/:pg?', middleware.validateReq, (req, res) => {
+app.get('/v1/videos/youtube/:pg?', [ middleware.validateReq, middleware.auth ], (req, res) => {
   esovdb.queryYouTubeVideos(req, res);
 });
 
