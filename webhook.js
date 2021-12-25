@@ -15,9 +15,6 @@ const regexYT = /^(?!rec)(?![\w\-]{12,})(?:.*youtu\.be\/|.*v=)?([\w\-]{10,12})&?
 /** @constant {RegExp} regexTopic - Regular expression for matching and extracting an ESOVDB topic from a mixed Zotero 'extras' field */
 const regexTopic = /Topic:\s(.*)\n?/;
 
-/** @constant {RegExp} regexTags - Regular expression for matching and extracting a list of tags from a mixed Zotero 'extras' field */
-const regexTags = /Tags:\s(.*)\n?/;
-
 /** @constant {RegExp} regexLearnMore - Regular expression for matching and extracting the 'Learn More' link from a mixed Zotero 'extras' field */
 const regexLearnMore = /Learn More:\s(.*)\n?/;
 
