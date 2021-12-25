@@ -313,6 +313,17 @@ module.exports = {
     dict.defineTag('sideEffects', {
       mustNotHaveValue: true
     });
-  }
+  },
+  
+  /**
+   *  Translates HTTP request method into a string representing the type of API operation.
+   *
+   *  @method getOp
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {string} req.method - The HTTP request method (e.g. 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', etc)
+   *  @returns {string} The named ESOVDB API operation associated with a given HTTP request method
+   */
+  
+  getOp: ({ method }) => new Map([[ 'POST', 'create' ],[ 'PUT', 'update' ],[ 'DELETE', 'delete' ]]).get(method)
   
 }

@@ -13,7 +13,7 @@ const randomNode = (range) => Math.floor(Math.random() * range);
 module.exports = {
   getLatest: cron.schedule('0 0 * * *', async () =>  {
     console.log('Performing daily cache of recently modified videos…');
-    await esovdb.updateLatest();
+    await esovdb.updateLatest(false);
   },{
     scheduled: false
   }),

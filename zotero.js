@@ -1,5 +1,5 @@
 /**
- *  @file Zotero Web API 3.0 methods and utility functions
+ *  @file Zotero Web API 3.0 sync methods and utility functions
  *  @author Avana Vana <dear.avana@gmail.com>
  *  @module zotero
  *  @see [Zotero Web API 3.0 › Write Requests]{@link www.zotero.org/support/dev/web_api/v3/write_requests}
@@ -13,7 +13,7 @@ const webhook = require('./webhook');
 const twitter = require('./twitter');
 const batch = require('./batch');
 const { processUpdates } = require('./esovdb');
-const { sleep, queueAsync, formatDuration, formatDate, packageAuthors, sortDates } = require('./util');
+const { sleep, queueAsync, formatDuration, formatDate, packageAuthors, getOp, sortDates } = require('./util');
 
 const zoteroHeaders = {
   Authorization: 'Bearer ' + process.env.ZOTERO_API_KEY,
@@ -571,13 +571,13 @@ module.exports = {
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {(Object|Object[])} req.body - A single object or array of objects representing records from the ESOVDB videos table in Airtable, sent through an ESOVDB Airtable automation
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
-   *  @param {string} kind - String representation of the type of resource being synced, sent via URL parameter (e.g. 'items' or 'collections')
-   *  @param {('create'|'update')} op - String representation of the current batch operation 
    *  @sideEffects Takes data received through the '/zotero/:kind' endpoint, creates a Redis set for created records, and Observable stream that populates a Redis set within a time window for updated records, and finally sends the batch to be processed
    */
   
-  sync: async (req, res, kind, op) => {
+  sync: async (req, res) => {
     try {
+      const kind = req.params.kind;
+      const op = getOp(req);
       const records = Array.isArray(req.body) ? req.body : Array.of(req.body);
       
       switch (op) {

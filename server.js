@@ -110,16 +110,16 @@ app.post('/:table/update', [ middleware.auth, middleware.validateReq, express.ur
 app.route('/zotero/:kind')
   .post([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
     console.log(`Performing zotero/${req.params.kind}/create API request...`);
-    zotero.sync(req, res, req.params.kind, 'create');
+    zotero.sync(req, res);
   })
   .put([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
     console.log(`Performing zotero/${req.params.kind}/update API request...`);
-    zotero.sync(req, res, req.params.kind, 'update');
+    zotero.sync(req, res);
   })
   .options(cors())
   .delete([ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
     console.log(`Performing zotero/${req.params.kind}/delete API request...`);
-    zotero.sync(req, res, req.params.kind, 'delete');
+    zotero.sync(req, res);
   });
 
 /**

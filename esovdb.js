@@ -385,6 +385,16 @@ module.exports = {
     }
   },
   
+  /**
+   *  Merges previously cached ESOVDB videos data (the vast majority of all videos in the DB) with videos modified in the past 24 hours.
+   *
+   *  @async
+   *  @method updateLatest
+   *  @param {Boolean} [useCache=true] - Whether or not data on the 'latest' data (i.e. modifications to ESOVDB videos data made in the past 24 hours) should be pulled from the cache, or freshly retrieved from the ESOVDB Airtable
+   *  @sideEffects Reads from and writes to (overwrites) a JSON file containing all video data in the ESOVDB with any modifications made in the past 24 hours
+   *  @returns {Object[]} Returns all ESOVDB videos data with any (if there are any) modifications made in the past 24 hours
+   */
+  
   updateLatest: async (useCache = true) => {
     let result, lastTime = new Date(); lastTime.setHours(0); lastTime.setMinutes(0); lastTime.setSeconds(0); lastTime.setMilliseconds(0); lastTime.setDate(lastTime.getDate() - 1);
     const modifiedAfter = encodeURIComponent(lastTime.toLocaleString());
@@ -406,10 +416,22 @@ module.exports = {
     return result;
   },
   
+  /**
+   *  Passes the body of an HTTP POST request to this server on to {@link updateLatest}, which merges previously cached ESOVDB videos data (the vast majority of all videos in the DB) with videos modified in the past 24 hours.
+   *
+   *  @async
+   *  @method getLatest
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {Object[]} req.body - An array of objects formatted as updates for Airtable (i.e. [ { id: 'recordId', fields: { 'Airtable Field': 'value', ... } }, ... ]) passed as the body of the [server request]{@link req}
+   *  @param {!express:Response} [res=false] - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class or Boolean false, by default, which allows the function to distinguish between external clients, which need to be sent an HTTPServerResponse object, and internal usage of the function, which need to return a value
+   *  @sideEffects Overwrites a JSON file containing all video data in the ESOVDB with any modifications made in the past 24 hours. If {@link res} is provided, sends an HTTPServerResponse object to the requesting client
+   *  @returns {Object[]} If {@link res} is not provided (i.e. internal consumption of this API method), returns all ESOVDB videos data with any modifications made in the past 24 hours
+   */
+  
   getLatest: async (req, res = false) => {
     try {
       console.log(`Performing videos/all ${res ? 'external' : 'internal'} API request…`);
-      const latest = await module.exports.updateLatest(req.headers['esovdb-no-cache'] === process.env.ESOVDB_NO_CACHE ? false : true);
+      const latest = await module.exports.updateLatest(req.headers && req.headers['esovdb-no-cache'] && req.headers['esovdb-no-cache'] === process.env.ESOVDB_NO_CACHE ? false : true);
       if (res) res.status(200).send(JSON.stringify(latest));
       else return latest;
     } catch (err) {
