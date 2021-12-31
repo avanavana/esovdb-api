@@ -247,7 +247,7 @@ const formatItems = async (video, template) => {
     url: video.url || '',
     accessDate: formatDate(video.accessDate) || '',
     archive: 'Earth Science Online Video Database',
-    archiveLocation: `https://airtable.com/appAqhfquNFMRAGhQ/tbl3WP689vHdmg7P2/viwD9Tpr6JAAr97CW/${video.recordId}`,
+    archiveLocation: `https://airtable.com/appAqhfquNFMRAGhQ/tbl3WP689vHdmg7P2/viwD9Tpr6JAAr97CW/${video.recordId}?blocks=bipKEx011McOmAZW2`,
     libraryCatalog: '',
     callNumber: video.esovdbId || '',
     rights: '',

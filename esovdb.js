@@ -30,6 +30,9 @@ const tables = new Map([
 /** @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
 const airtableRateLimit = 1005 / 5;
 
+/** @constant {RegExp} regexYT - Regular expression for matching and extracting a YouTube videoId from a URL or on its own */
+const regexYT = /^(?!rec)(?![\w\-]{12,})(?:.*youtu\.be\/|.*v=)?([\w\-]{10,12})&?.*$/;
+
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 
 module.exports = {
@@ -48,6 +51,7 @@ module.exports = {
    *  @param {?number} [req.query.maxRecords] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
    *  @param {?string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
    *  @param {?string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
+   *  @param {?string} [req.query.youTube] - A YouTube video's URL, short URL, or video ID
    *  @param {(!express:Response|Boolean)} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class, or false if not passed
    *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript object
    *  @returns {Object[]} Array of ESOVDB video records as JavaScript objects (if no {@link res} object is provided)
@@ -73,7 +77,8 @@ module.exports = {
     let modifiedAfter,
         modifiedAfterDate,
         createdAfter,
-        createdAfterDate;
+        createdAfterDate,
+        likeYTID;
     
     if (
       req.query.modifiedAfter &&
@@ -93,12 +98,15 @@ module.exports = {
       createdAfterDate = new Date(createdAfter);
     }
     
+    if (req.query.youTube && regexYT.test(decodeURIComponent(req.query.youTube))) likeYTID = regexYT.exec(decodeURIComponent(req.query.youTube))[1];
+    
     let queryText = req.params.pg !== null
       ? `for page ${req.params.pg + 1} (${req.query.pageSize} results per page)`
       : `(${req.query.pageSize} results per page, ${req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all'} results)`;
     
     queryText += modifiedAfterDate ? ', modified after ' + modifiedAfterDate.toLocaleString() : '';
     queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
+    queryText += likeYTID ? `, matching YouTube ID "${likeYTID}"` : '';
     
     console.log(`Performing videos/query ${res ? 'external' : 'internal'} API request ${queryText}…`);
 
@@ -114,6 +122,7 @@ module.exports = {
 
       let pg = 0;
       const ps = +req.query.pageSize;
+      let filterStrings = [];
       let options = {
         pageSize: ps,
         view: 'All Online Videos',
@@ -151,8 +160,10 @@ module.exports = {
       };
 
       if (req.query.maxRecords && !req.params.pg) options.maxRecords = +req.query.maxRecords;
-      if (modifiedAfter) options.filterByFormula = `IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`;
-      if (createdAfter) options.filterByFormula = `IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`;
+      if (modifiedAfter) filterStrings.push(`IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`);
+      if (createdAfter) filterStrings.push(`IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`);
+      if (likeYTID) filterStrings.push(`REGEX_MATCH({URL}, "${likeYTID}")`);
+      if (filterStrings.length > 0) options.filterByFormula = `AND(${filterStrings.join(',')})`;
       
       let data = [];
 
@@ -219,7 +230,7 @@ module.exports = {
             function done(err) {
               if (err) {
                 console.error(err);
-                if (res) res.status(400).end(JSON.stringify(err));
+                if (res) return res.status(400).send(JSON.stringify(err));
                 else throw new Error(err.message);
               } else {
                 console.log(`[DONE] Retrieved ${data.length} records.`);
@@ -235,56 +246,59 @@ module.exports = {
   },
   
   /**
-   *  Retrieves a query of YouTube videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query for 200 videos (the maximum that can be uploaded to a YouTube playquery in a day), 100 videos at a time, sorted by oldest first, using Botleneck for rate-limiting.  
+   *  Retrieves a list of ESOVDB videos that are on YouTube by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query for 100 videos, sorted by oldest first, using Bottleneck for rate-limiting.  
    *
    *  @method queryYouTubeVideos
    *  @requires Airtable
    *  @requires Bottleneck
    *  @requires cache
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
-   *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/youtube, which specifies which page (one-based) the [server response]{@link res} should start from—every response sends two pages of 100 records each, for a maximum of 200 (based on YouTube's quota for adding to playquerys)
+   *  @param {string} [req.params.id] - A YouTube video's URL, short URL, or video ID, passed last, as a required URL parameter
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
-   *  @param {(!express:Response|Boolean)} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class, or false if not passed
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
    *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript object
-   *  @returns {Object[]} Array of ESOVDB YouTube video records as JavaScript objects (if no {@link res} object is provided)
+   *  @returns {Object} Object with collection or properties for identifying and linking to an ESOVDB record on YouTube
    */
   
-  queryYouTubeVideos: (req, res = null) => {
-    if (!req.params) req.params = {};
-    if (!req.query) req.query = {};
-    req.params.pg = !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 ? null : +req.params.pg - 1;
+  queryYouTubeVideos: (req, res) => {    
+    let videoId;
     
-    let queryText = req.params.pg !== null
-      ? `for pages ${req.params.pg + 1}-${req.params.pg + 2}, 100 records per page`
-      : 'for all records, 100 at a time';
+    if (req.params.id && regexYT.test(decodeURIComponent(req.params.id))) {
+      videoId = regexYT.exec(decodeURIComponent(req.params.id))[1];
+    } else {
+      if (res) {
+        return res.status(400).send('Missing parameter "id".');
+      } else {
+        throw new Error('Missing parameter "id".');
+      }
+    }
     
-    console.log(`Performing videos/youtube ${res ? 'external' : 'internal'} API request ${queryText}…`);
+    console.log(`Performing videos/youtube ${res ? 'external' : 'internal'} API request for YouTube ID "${videoId}"…`);
 
     const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
 
     if (cachedResult !== null) {
       console.log('Cache hit. Returning cached result for ' + req.url);
-      if (res) res.status(200).send(JSON.stringify(cachedResult));
+      if (res) return res.status(200).send(JSON.stringify(cachedResult));
       else return cachedResult;
     } else {
       console.log('Cache miss. Loading from Airtable for ' + req.url);
 
-      let pg = 0;
-      const ps = +req.query.pageSize;
-      const options = {
-        pageSize: 100,
+      let options = {
+        pageSize: 1,
+        maxRecords: 1,
         view: 'All Online Videos',
         sort: [{ field: 'Created' }],
-        filterByFormula: `{Video Provider} = 'YouTube'`,
+        filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${videoId}"))`,
         fields: [
-          'Title',
           'YouTube Video ID',
-          'Topic'
+          'Record ID',
+          'ESOVDBID',
+          'Zotero Key',
+          'ISO Added'
         ],
       };
-      
-      if (Number(req.params.pg) && req.params.pg > 0) options.maxRecords = 200;
       
       let data = [];
       
@@ -293,27 +307,19 @@ module.exports = {
           .select(options)
           .eachPage(
             function page(records, fetchNextPage) {
-              if (!req.params.pg || pg == req.params.pg) {
-                console.log(`Retrieving records ${pg * 100 + 1}-${(pg + 1) * 100}…`);
-
                 records.forEach((record) => {
                   let row = {
-                    title: record.get('Title') || '',
                     videoId: record.get('YouTube Video ID') || '',
-                    topic: record.get('Topic') || ''
+                    id: record.get('Record ID') || '',
+                    esovdbId: record.get('ESOVDBID') || '',
+                    zoteroKey: record.get('Zotero Key') || '',
+                    added: formatDate(record.get('ISO Added')) || ''
                   };
 
                   data.push(row);
                 });
-
-                console.log(`Successfully retrieved ${records.length} records.`);
-
-                pg++;
+              
                 fetchNextPage();
-              } else {
-                pg++;
-                fetchNextPage();
-              }
             },
             function done(err) {
               if (err) {
@@ -321,15 +327,20 @@ module.exports = {
                 if (res) res.status(400).end(JSON.stringify(err));
                 else throw new Error(err.message);
               } else {
-                console.log(`[DONE] Retrieved ${data.length} records.`);
-                cache.writeCacheWithPath(cachePath, data);
-                if (res) return res.status(200).send(JSON.stringify(data));
+                if (data.length > 0) {
+                  console.log(`[DONE] Retrieved matching record.`);
+                  cache.writeCacheWithPath(cachePath, data[0]);
+                  if (res) return res.status(200).send(JSON.stringify(data[0]));
+                } else {
+                  console.error(`[ERROR] Unable to find matching record.`);
+                  if (res) return res.status(404).send('Unable to find matching record.');
+                }
               }
             }
           )
       );
       
-      if (!res) return data;
+      if (!res && data.length > 0) return data[0];
     }
   },
   

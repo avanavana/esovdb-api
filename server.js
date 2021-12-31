@@ -87,7 +87,7 @@ app.get('/v1/videos/query/:pg?', [ middleware.auth, middleware.validateReq ], (r
  *  @callback esovdb.queryYouTubeVideos
  */
 
-app.get('/v1/videos/youtube/:pg?', [ middleware.auth, middleware.validateReq ], (req, res) => {
+app.get('/v1/videos/youtube/:id?', [ middleware.auth, middleware.validateReq ], (req, res) => {
   esovdb.queryYouTubeVideos(req, res);
 });
 
