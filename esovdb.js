@@ -310,7 +310,7 @@ module.exports = {
                 records.forEach((record) => {
                   let row = {
                     videoId: record.get('YouTube Video ID') || '',
-                    id: record.get('Record ID') || '',
+                    recordId: record.get('Record ID') || '',
                     esovdbId: record.get('ESOVDBID') || '',
                     zoteroKey: record.get('Zotero Key') || '',
                     added: formatDate(record.get('ISO Added')) || ''

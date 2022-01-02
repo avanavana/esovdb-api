@@ -46,8 +46,11 @@ const middleware = {
   },
   
   auth: (req, res, next) => {
-    if ((req.headers['esovdb-key'] && req.headers['esovdb-key'] === process.env.ESOVDB_KEY) || (req.headers['X-RapidAPI-Proxy-Secret'] && req.headers['X-RapidAPI-Proxy-Secret'] === process.env.RAPIDAPI_SECRET)) {
+    if (req.headers['esovdb-key'] && req.headers['esovdb-key'] === process.env.ESOVDB_KEY) {
       console.log('ESOVDB key validated.');
+      next();
+    } else if (req.headers['X-RapidAPI-Proxy-Secret'] && req.headers['X-RapidAPI-Proxy-Secret'] === process.env.RAPIDAPI_SECRET) {
+      console.log('RapidAPI proxy secret validated.');
       next();
     } else {
       console.error(`Unauthorized attempted access of ${req.path} without a valid ESOVDB key.`);
@@ -87,7 +90,7 @@ app.get('/v1/videos/query/:pg?', [ middleware.auth, middleware.validateReq ], (r
  *  @callback esovdb.queryYouTubeVideos
  */
 
-app.get('/v1/videos/youtube/:id?', [ middleware.auth, middleware.validateReq ], (req, res) => {
+app.get('/v1/videos/youtube/:id?', [ middleware.validateReq, middleware.allowCORS ], (req, res) => {
   esovdb.queryYouTubeVideos(req, res);
 });
 

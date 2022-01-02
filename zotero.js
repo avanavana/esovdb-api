@@ -269,7 +269,7 @@ const formatItems = async (video, template) => {
       payload.collections.push(video.zoteroSeries);
     } else {
       try {
-        const { data } = await postItems('collections', [ { name: video.series } ]);
+        const { data } = await postItems('collections', [ { name: video.series, parentCollection: parentCollections.get('series') } ]);
 
         if (data.successful && Object.values(data.successful).length > 0) {
           console.log(`› Successfully created collection "${video.series}" under "Series".`)
