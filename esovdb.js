@@ -386,7 +386,7 @@ module.exports = {
     const modifiedAfter = encodeURIComponent(lastTime.toLocaleString());
     const existing = cache.readCacheWithPath('.cache/v1/videos/query/all.json', false);
     const cachedModified = useCache ? cache.readCacheWithPath('.cache/v1/videos/query/latest.json') : null;
-    const modified = cachedModified ? cachedModified : await module.exports.queryVideos({ url: 'v1/videos/query/latest', query: { modifiedAfter } });
+    const modified = cachedModified ? cachedModified : await module.exports.queryVideos({ url: '/v1/videos/query/latest', query: { modifiedAfter } });
     await sleep(5);
 
     if (modified.length > 0) {
