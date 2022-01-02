@@ -252,12 +252,10 @@ const formatItems = async (video, template) => {
     callNumber: video.esovdbId || '',
     rights: '',
     extra: extras.map((item) => item.title + ': ' + item.value).join('\n'),
-    tags: [],
+    tags: video.tags ? video.tags.map((tag) => ({ tag })) : [],
     collections: topics.get(video.topic) ? [ topics.get(video.topic) ] : [],
     relations: {},
   };
-  
-  if (video.tags) payload.tags = video.tags.map((tag) => ({ tag }));
   
   if (video.zoteroKey && video.zoteroVersion) {
     payload.key = video.zoteroKey;
