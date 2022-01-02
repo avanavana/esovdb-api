@@ -35,6 +35,67 @@ const regexYT = /^(?!rec)(?![\w\-]{12,})(?:.*youtu\.be\/|.*v=)?([\w\-]{10,12})&?
 
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 
+const format = {
+  
+  toZoteroJSON: (record) => ({
+    zoteroKey: record.get('Zotero Key') || '',
+    zoteroVersion: record.get('Zotero Version') || null,
+    zoteroSeries: record.get('Series Zotero Key') || '',
+    title: record.get('Title') || '',
+    url: record.get('URL') || '',
+    year: record.get('Year') || null,
+    desc: record.get('Description') || '',
+    runningTime: formatDuration(record.get('Running Time')) || '',
+    format: record.get('Format') || '',
+    topic: record.get('Topic') || '',
+    tags: record.get('Tags') || [],
+    learnMore: record.get('Learn More'),
+    series: record.get('Series Text') || '',
+    seriesCount: +record.get('Series Count Text') || '',
+    vol: record.get('Vol.') || null,
+    no: record.get('No.') || null,
+    publisher: record.get('Publisher Text') || '',
+    presenters: packageAuthors(record.get('Presenter First Name'), record.get('Presenter Last Name')),
+    language: record.get('Language Code') || '',
+    location: record.get('Location') || '',
+    plusCode: record.get('Plus Code') || '',
+    provider: record.get('Video Provider') || '',
+    esovdbId: record.get('ESOVDBID') || '',
+    recordId: record.get('Record ID') || '',
+    accessDate: formatDate(record.get('ISO Added')) || '',
+    created: record.get('Created'),
+    modified: record.get('Modified'),
+  }),
+  
+//   toJSON: (record) => {
+//     // coming soon
+//   },
+  
+  toYTJSON: (record) => ({
+    videoId: record.get('YouTube Video ID') || '',
+    recordId: record.get('Record ID') || '',
+    esovdbId: record.get('ESOVDBID') || '',
+    zoteroKey: record.get('Zotero Key') || '',
+    added: formatDate(record.get('ISO Added')) || ''
+  }),
+  
+  toCSV: (record) => {
+    
+  },
+  
+//   toXML: (video) => {
+//     // aspirational
+//   },
+  
+//   toKML: (video) => {
+//     // aspirational
+//   },
+  
+//   toGeoJSON: (video) => {
+//     // aspirational
+//   }
+}
+
 module.exports = {
   
   /**
@@ -120,52 +181,22 @@ module.exports = {
     } else {
       console.log('Cache miss. Loading from Airtable for ' + req.url);
 
-      let pg = 0;
-      const ps = +req.query.pageSize;
-      let filterStrings = [];
-      let options = {
-        pageSize: ps,
-        view: 'All Online Videos',
-        sort: [{ field: 'Modified', direction: 'desc' }],
-        fields: [
-          'Zotero Key',
-          'Zotero Version',
-          'Series Zotero Key',
-          'Title',
-          'URL',
-          'Year',
-          'Description',
-          'Running Time',
-          'Format',
-          'Topic',
-          'Tags',
-          'Learn More',
-          'Series Text',
-          'Series Count Text',
-          'Vol.',
-          'No.',
-          'Publisher Text',
-          'Presenter First Name',
-          'Presenter Last Name',
-          'Language Code',
-          'Location',
-          'Plus Code',
-          'Video Provider',
-          'ESOVDBID',
-          'Record ID',
-          'ISO Added',
-          'Created',
-          'Modified'
-        ],
-      };
+      let data = [],
+          pg = 0,
+          ps = +req.query.pageSize,
+          filterStrings = [],
+          options = {
+            pageSize: ps,
+            view: 'All Online Videos',
+            sort: [{ field: 'Modified', direction: 'desc' }],
+            fields: [ 'Zotero Key', 'Zotero Version', 'Series Zotero Key', 'Title', 'URL', 'Year', 'Description', 'Running Time', 'Format', 'Topic', 'Tags', 'Learn More', 'Series Text', 'Series Count Text', 'Vol.', 'No.', 'Publisher Text', 'Presenter First Name', 'Presenter Last Name', 'Language Code', 'Location', 'Plus Code', 'Video Provider', 'ESOVDBID', 'Record ID', 'ISO Added', 'Created', 'Modified' ],
+          };
 
       if (req.query.maxRecords && !req.params.pg) options.maxRecords = +req.query.maxRecords;
       if (modifiedAfter) filterStrings.push(`IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`);
       if (createdAfter) filterStrings.push(`IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`);
       if (likeYTID) filterStrings.push(`REGEX_MATCH({URL}, "${likeYTID}")`);
       if (filterStrings.length > 0) options.filterByFormula = `AND(${filterStrings.join(',')})`;
-      
-      let data = [];
 
       rateLimiter.wrap(
         base('Videos')
@@ -173,44 +204,8 @@ module.exports = {
           .eachPage(
             function page(records, fetchNextPage) {
               if (!req.params.pg || pg == req.params.pg) {
-                console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}…`);
-                
-                records.forEach((record) => {
-                  let row = {
-                    zoteroKey: record.get('Zotero Key') || '',
-                    zoteroVersion: record.get('Zotero Version') || null,
-                    zoteroSeries: record.get('Series Zotero Key') || '',
-                    title: record.get('Title') || '',
-                    url: record.get('URL') || '',
-                    year: record.get('Year') || null,
-                    desc: record.get('Description') || '',
-                    runningTime: formatDuration(record.get('Running Time')) || '',
-                    format: record.get('Format') || '',
-                    topic: record.get('Topic') || '',
-                    tags: record.get('Tags') || [],
-                    learnMore: record.get('Learn More'),
-                    series: record.get('Series Text') || '',
-                    seriesCount: +record.get('Series Count Text') || '',
-                    vol: record.get('Vol.') || null,
-                    no: record.get('No.') || null,
-                    publisher: record.get('Publisher Text') || '',
-                    presenters: packageAuthors(
-                      record.get('Presenter First Name'),
-                      record.get('Presenter Last Name')
-                    ),
-                    language: record.get('Language Code') || '',
-                    location: record.get('Location') || '',
-                    plusCode: record.get('Plus Code') || '',
-                    provider: record.get('Video Provider') || '',
-                    esovdbId: record.get('ESOVDBID') || '',
-                    recordId: record.get('Record ID') || '',
-                    accessDate: formatDate(record.get('ISO Added')) || '',
-                    created: record.get('Created'),
-                    modified: record.get('Modified'),
-                  };
-
-                  data.push(row);
-                });
+                console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}…`);                
+                data = [ ...data, records.map((record) => format.toZoteroJSON(record)) ];
 
                 if (pg == req.params.pg) {
                   console.log(`[DONE] Retrieved ${data.length} records.`);
@@ -220,11 +215,9 @@ module.exports = {
                   console.log(`Successfully retrieved ${records.length} records.`);
                 }
 
-                pg++;
-                fetchNextPage();
+                pg++, fetchNextPage();
               } else {
-                pg++;
-                fetchNextPage();
+                pg++, fetchNextPage();
               }
             },
             function done(err) {
@@ -285,40 +278,22 @@ module.exports = {
     } else {
       console.log('Cache miss. Loading from Airtable for ' + req.url);
 
-      let options = {
-        pageSize: 1,
-        maxRecords: 1,
-        view: 'All Online Videos',
-        sort: [{ field: 'Created' }],
-        filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${videoId}"))`,
-        fields: [
-          'YouTube Video ID',
-          'Record ID',
-          'ESOVDBID',
-          'Zotero Key',
-          'ISO Added'
-        ],
-      };
-      
-      let data = [];
+      let data = [],
+          options = {
+            pageSize: 1,
+            maxRecords: 1,
+            view: 'All Online Videos',
+            sort: [{ field: 'Created' }],
+            filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${videoId}"))`,
+            fields: [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ],
+          };
       
       rateLimiter.wrap(
         base('Videos')
           .select(options)
           .eachPage(
             function page(records, fetchNextPage) {
-                records.forEach((record) => {
-                  let row = {
-                    videoId: record.get('YouTube Video ID') || '',
-                    recordId: record.get('Record ID') || '',
-                    esovdbId: record.get('ESOVDBID') || '',
-                    zoteroKey: record.get('Zotero Key') || '',
-                    added: formatDate(record.get('ISO Added')) || ''
-                  };
-
-                  data.push(row);
-                });
-              
+                data = [ ...data, records.map((record) => format.toYTJSON(record)) ];
                 fetchNextPage();
             },
             function done(err) {

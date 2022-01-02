@@ -148,7 +148,12 @@ const postItems = async (path, items) => {
     const failed = Object.values(data.failed);
     if (successful.length > 0) console.log(`› Successfully posted ${successful.length} item${successful.length === 1 ? '' : 's'}.`);
     if (unchanged.length > 0) console.log(`› ${unchanged.length} item${unchanged.length === 1 ? '' : 's'} left unchanged.`);
-    if (failed.length > 0) console.error(`› Failed to post ${failed.length} item${failed.length === 1 ? '' : 's'}.`);
+    
+    if (failed.length > 0) { 
+      fs.writeFile('failed.json', JSON.stringify(failed), (err) => { if (err) throw new Error('[ERROR] Unable to write failed items to JSON.'); });  
+      console.error(`› Failed to post ${failed.length} item${failed.length === 1 ? '' : 's'}.`);
+    }
+    
     return { successful, unchanged, failed };
   } catch (err) {
     console.error(err.message);
