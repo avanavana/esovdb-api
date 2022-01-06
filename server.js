@@ -12,7 +12,7 @@ const { db, monitor } = require('./batch');
 const { appReady, patternsToRegEx } = require('./util');
 const cron = require('./cron');
 const esovdb = require('./esovdb');
-const webhook = require('./webhook');
+const webhooks = require('./webhooks');
 const zotero = require('./zotero');
 
 const app = express();
@@ -85,7 +85,7 @@ app.get('/v1/videos/query/:pg?', [ middleware.auth, middleware.validateReq ], (r
 });
 
 /**
- *  API endpoint for querying the ESOVDB for syncing with YouTube, returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideos]{@link esovdb.queryYouTubeVideos}.
+ *  API endpoint for querying the ESOVDB for a single YouTube video, returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideos]{@link esovdb.queryYouTubeVideos}.
  *  @requires esovdb
  *  @callback esovdb.queryYouTubeVideos
  */
@@ -127,33 +127,58 @@ app.route('/zotero/:kind')
 
 /**
  *  API POST endpoint for handling new submissions from the ESOVDB Discord #submissions channel
- *  @requires webhook
- *  @callback webhook.execute
+ *  @requires webhooks
+ *  @callback webhooks.execute
  */
 
-app.post('/webhook/discord', [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
-  console.log(`Performing webhook/discord/userSubmission API request...`);
-  const response = await webhook.execute(req.body, 'discord', 'userSubmission');
+app.post('/webhooks/discord', [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
+  console.log(`Performing webhooks/discord/userSubmission API request...`);
+  const response = await webhooks.execute(req.body, 'discord', 'userSubmission');
   if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.')
   res.status(200).send(response.config.data)
 });
 
 /**
  *  Combined API endpoints for handling new submissions sent to the ESOVDB Twitter account, @esovdb with a hashtag of #submit, as well as Twitter's webhook verification
- *  @requires webhook
- *  @callback webhook.execute
+ *  @requires webhooks
+ *  @callback webhooks.execute
  */
 
-app.route('/webhook/twitter')
+app.route('/webhooks/twitter')
   .all([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res, next) => { next(); })
   .post(async (req, res) => {
-    console.log(`Performing webhook/twitter API request...`);
-    const response = await webhook.execute(req.body, 'twitter', '{event.type}');
+    console.log(`Performing webhooks/twitter API request...`);
+    const response = await webhooks.execute(req.body, 'twitter', '{event.type}');
     if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Twitter webhook event.')
     res.status(200).send(response.config.data)
   })
   .get(async (req, res) => {
     res.status(200).send('OK (Placeholder)');
+  });
+
+/**
+ *  Combined API endpoints for managing ESOVDB webhook subscriptions
+ *  @requires webhooks
+ *  @callback webhooks.list, webhooks.manage
+ */
+
+app.route('/webhooks')
+  .get([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+    console.log(`Performing webhooks/list API request...`);
+    webhooks.list(req, res);
+  })
+  .post([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+    console.log(`Performing webhooks/create API request...`);
+    webhooks.manage(req, res);
+  })
+  .put([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+    console.log(`Performing webhooks/update API request...`);
+    webhooks.manage(req, res);
+  })
+  .options(cors())
+  .delete([ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+    console.log(`Performing webhooks/delete API request...`);
+    webhooks.manage(req, res);
   });
 
 /**

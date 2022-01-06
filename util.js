@@ -321,9 +321,9 @@ module.exports = {
    *  @method getOp
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {string} req.method - The HTTP request method (e.g. 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', etc)
-   *  @returns {string} The named ESOVDB API operation associated with a given HTTP request method
+   *  @returns {(string|Boolean)} The named ESOVDB API operation associated with a given HTTP request method.  Returns false if a method other than POST, PUT, or DELETE is passed to it.
    */
   
-  getOp: ({ method }) => new Map([[ 'POST', 'create' ],[ 'PUT', 'update' ],[ 'DELETE', 'delete' ]]).get(method)
+  getOp: ({ method }) => new Map([[ 'POST', 'create' ],[ 'PUT', 'update' ],[ 'DELETE', 'delete' ]]).get(method) || false
   
 }

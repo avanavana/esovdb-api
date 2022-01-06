@@ -9,7 +9,7 @@ const dotenv = require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
 const { Observable, Subject } = require('rxjs');
-const webhook = require('./webhook');
+const webhooks = require('./webhooks');
 const twitter = require('./twitter');
 const batch = require('./batch');
 const { processUpdates } = require('./esovdb');
@@ -150,7 +150,7 @@ const postItems = async (path, items) => {
     if (unchanged.length > 0) console.log(`› ${unchanged.length} item${unchanged.length === 1 ? '' : 's'} left unchanged.`);
     
     if (failed.length > 0) { 
-      fs.writeFile('failed.json', JSON.stringify(failed), (err) => { if (err) throw new Error('[ERROR] Unable to write failed items to JSON.'); });  
+      fs.writeFile('.data/failed.json', JSON.stringify(failed), (err) => { if (err) throw new Error('[ERROR] Unable to write failed items to JSON.'); });  
       console.error(`› Failed to post ${failed.length} item${failed.length === 1 ? '' : 's'}.`);
     }
     
@@ -167,7 +167,8 @@ const postItems = async (path, items) => {
  *  @function deleteItems
  *  @requires axios
  *  @param {string[]} items - An array of one or more Zotero Key strings
- *  @returns {Object} An object containing two arrays of Zotero Key strings, one for successful deletions, and one for failures, and a total number of successes.  
+ *  @returns {Object} An object containing two arrays of Zotero Key strings, one for successful deletions, and one for failures, and a total number of successes. 
+ *  @sideEffects Triggers webhook events 'videos.delete' or 'series.delete', depending on the parameter {@link kind}
  *  @see [Zotero Web API 3.0 › Write Requests › Creating Multiple Objects]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#creating_multiple_objects}
  */
 
@@ -181,6 +182,9 @@ const deleteItems = async (items, kind, res = false) => {
     if (items.length > 50) await sleep(zoteroRateLimit);
     i++;
   }
+  
+  if (kind === 'items') webhooks.subscriptions.trigger('videos.delete', { data: items });
+  else if (kind === 'collections') webhooks.subscriptions.trigger('series.delete', { data: items });
  
   if (!deleted.some((response) => !response) && res) {
     console.log(`› Successfully deleted ${queue} item${queue === 1 ? '' : 's'}.`);
@@ -317,9 +321,9 @@ const broadcastItems = async (channel, videos) => {
         console.log('Posting new items to Discord in the #whats-new channel...');
 
         if (videos.length > 1) {
-          results = await webhook.execute(videos, 'discord', 'newSubmissionTotal')
+          results = await webhooks.execute(videos, 'discord', 'newSubmissionTotal')
         } else {
-          results = await webhook.execute(videos[0].data, 'discord', 'newSubmission');
+          results = await webhooks.execute(videos[0].data, 'discord', 'newSubmission');
         }
 
         if (results && results.config.data) console.log(`› Successfully posted to ESOVDB Discord in #whats-new.`);
@@ -351,7 +355,7 @@ const broadcastItems = async (channel, videos) => {
  *  @param {(Object|Object[])} series - A single object or array of objects representing records from the ESOVDB series table in Airtable sent through an ESOVDB Airtable automation
  *  @param {('create'|'update)} op - String representation of the current batch operation 
  *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
- *  @sideEffects Formats new or updated collections to be compatible with Zotero, posts them to Zotero
+ *  @sideEffects Formats new or updated collections to be compatible with Zotero, posts them to Zotero, triggers webhook events "series.create" or "series.update", depending on the parameter {@link op}
  */
 
 const processCollections = async (series, op, res = null) => {
@@ -412,7 +416,10 @@ const processCollections = async (series, op, res = null) => {
         'Zotero Version': collection.version
       }
     }));
-
+    
+    if (op === 'create') webhooks.subscriptions.trigger('series.create', { data: posted });
+    else if (op === 'update') webhooks.subscriptions.trigger('series.update', { data: posted });
+    
     const updated = await updateTable(collectionsToSync, 'Series');
 
     if (updated && updated.length > 0) {
@@ -435,7 +442,7 @@ const processCollections = async (series, op, res = null) => {
  *  @param {(Object|Object[])} videos - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
  *  @param {('create'|'update)} op - String representation of the current batch operation 
  *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
- *  @sideEffects Formats new or updated items to be compatible with Zotero, posts them to Zotero, and then tweets and sends a message on Discord if data represents one or more new items
+ *  @sideEffects Formats new or updated items to be compatible with Zotero, posts them to Zotero, and then tweets and sends a message on Discord if data represents one or more new items, triggers webhook events "videos.create" or "videos.update", depending on the parameter {@link op}
  */
 
 const processItems = async (videos, op, res = null) => {
@@ -488,8 +495,11 @@ const processItems = async (videos, op, res = null) => {
 
     if (op === 'create') {
       const itemsToBroadcast = posted.map((item) => ( { data: { ...item.data, muted: videos.filter((video) => video.esovdbId === item.data.callNumber).shift().muted, featured: videos.filter((video) => video.esovdbId === item.data.callNumber).shift().featured }})).filter((item) => !item.data.muted);
+      webhooks.subscriptions.trigger('videos.create', { data: posted });
       await broadcastItems('discord', itemsToBroadcast);
       await broadcastItems('twitter', itemsToBroadcast);
+    } else if (op === 'update') {
+      webhooks.subscriptions.trigger('videos.update', { data: posted });
     }
 
     const updated = await updateTable(itemsToSync, 'Videos');

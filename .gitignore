@@ -9,8 +9,8 @@ logs
 .cache
 .tmp
 
-# Debugging data
-failed.json
+# Private data
+.data
 
 # Redis
 redis-stable
