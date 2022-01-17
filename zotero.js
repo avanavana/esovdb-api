@@ -38,29 +38,29 @@ zoteroLibrary.defaults.headers.post['Content-Type'] = 'application/json';
 /** @constant {Map} parentCollections - Maps parent collections names from the ESOVDB to parent collection IDs in the Zotero library */
 const parentCollections = new Map([
   ['series', 'HYQEFRGR'],
-  ['topics', 'EGB8TQZ8']
+  ['topics', 'BCQLGFXZ']
 ]);
 
 /** @constant {Map} topics - Maps ESOVDB topics to their collection keys in Zotero */
 // prettier-ignore
 const topics = new Map([
-  ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', '5XQD67DA'],
-  ['Igneous & Metamorphic Petrology, Volcanism, & Hydrothermal Systems', 'L6JMIGTE'],
-  ['Alluvial, Pluvial & Terrestrial Sedimentology, Erosion & Weathering, Geomorphology, Karst, Groundwater & Provenance', 'BV7G3CIC'],
-  ['Early Earth, Life\'s Origins, Deep Biosphere, and the Formation of the Planet', '9DK53U7F'],
-  ['Geological Stories, News, Tours, & Field Trips', 'XDFHQTC3'],
-  ['History, Education, Careers, Field Work, Economic Geology, & Technology', 'M4NKIHBK'],
-  ['Glaciation, Atmospheric Science, Carbon Cycle, & Climate', 'AD997U4T'],
-  ['The Anthropocene', 'P2WNJD9N'],
-  ['Geo-Archaeology', 'UJDCHPB5'],
-  ['Paleoclimatology, Isotope Geochemistry, Radiometric Dating, Deep Time, & Snowball Earth', 'L4PLXHN8'],
-  ['Seafloor Spreading, Oceanography, Paleomagnetism, & Geodesy', 'NPDV3BHH'],
-  ['Tectonics, Terranes, Structural Geology, & Dynamic Topography', 'U3JYUDHI'],
-  ['Seismology, Mass Wasting, Tsunamis, & Natural Disasters', '63TE3Y26'],
-  ['Minerals, Mining & Resources, Crystallography, & Solid-state Chemistry', 'YY5W7DB8'],
-  ['Marine & Littoral Sedimentology, Sequence Stratigraphy, Carbonates, Evaporites, Coal, Petroleum, and Mud Volcanism', '37J3LYFL'],
-  ['Planetary Geology, Impact Events, Astronomy, & the Search for Extraterrestrial Life', 'HLV7WMZQ'],
-  ['Paleobiology, Mass Extinctions, Fossils, & Evolution', 'VYWX6R2B']
+  ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', 'B5X8MVCK'],
+  ['Igneous & Metamorphic Petrology, Volcanism, & Hydrothermal Systems', 'KXQG7TMT'],
+  ['Alluvial, Pluvial & Terrestrial Sedimentology, Erosion & Weathering, Geomorphology, Karst, Groundwater & Provenance', 'V8I78D2H'],
+  ['Early Earth, Life\'s Origins, Deep Biosphere, and the Formation of the Planet', 'L4SALFT8'],
+  ['Geological Stories, News, Tours, & Field Trips', 'SGBYID8N'],
+  ['History, Education, Careers, Field Work, Economic Geology, & Technology', 'CXHVI9V2'],
+  ['Glaciation, Atmospheric Science, Carbon Cycle, & Climate', 'FDY7EJ8V'],
+  ['The Anthropocene', 'K9SFXQHJ'],
+  ['Geo-Archaeology', 'TZE9CCSM'],
+  ['Paleoclimatology, Isotope Geochemistry, Radiometric Dating, Deep Time, & Snowball Earth', 'AH3P8UQB'],
+  ['Seafloor Spreading, Oceanography, Paleomagnetism, & Geodesy', 'BNKPMCWG'],
+  ['Tectonics, Terranes, Structural Geology, & Dynamic Topography', 'N96Q2P6H'],
+  ['Seismology, Mass Wasting, Tsunamis, & Natural Disasters', 'I2GP8YUQ'],
+  ['Minerals, Mining & Resources, Crystallography, & Solid-state Chemistry', '7GA4BWHF'],
+  ['Marine & Littoral Sedimentology, Sequence Stratigraphy, Carbonates, Evaporites, Coal, Petroleum, and Mud Volcanism', '5VEL36SF'],
+  ['Planetary Geology, Impact Events, Astronomy, & the Search for Extraterrestrial Life', 'B3N9IR6X'],
+  ['Paleobiology, Mass Extinctions, Fossils, & Evolution', 'YGF9LJ2V']
 ]);
 
 /** @constant {number} zoteroRateLimit - Time in seconds to wait between requests to the Zotero API to avoid rate-limiting */
