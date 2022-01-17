@@ -13,7 +13,7 @@ const webhooks = require('./webhooks');
 const twitter = require('./twitter');
 const batch = require('./batch');
 const { processUpdates } = require('./esovdb');
-const { sleep, queueAsync, formatDuration, formatDate, packageAuthors, getOp, sortDates } = require('./util');
+const { sleep, queueAsync, formatDuration, formatDate, packageAuthors, getOp, sortDates, shortISODateTime } = require('./util');
 
 const zoteroHeaders = {
   Authorization: 'Bearer ' + process.env.ZOTERO_API_KEY,
@@ -150,7 +150,7 @@ const postItems = async (path, items) => {
     if (unchanged.length > 0) console.log(`› ${unchanged.length} item${unchanged.length === 1 ? '' : 's'} left unchanged.`);
     
     if (failed.length > 0) { 
-      fs.writeFile('.data/failed.json', JSON.stringify(failed), (err) => { if (err) throw new Error('[ERROR] Unable to write failed items to JSON.'); });  
+      fs.writeFile(`.data/failed-${shortISODateTime()}.json`, JSON.stringify(failed), (err) => { if (err) throw new Error('[ERROR] Unable to write failed items to JSON.'); });  
       console.error(`› Failed to post ${failed.length} item${failed.length === 1 ? '' : 's'}.`);
     }
     

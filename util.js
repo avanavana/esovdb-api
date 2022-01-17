@@ -324,6 +324,15 @@ module.exports = {
    *  @returns {(string|Boolean)} The named ESOVDB API operation associated with a given HTTP request method.  Returns false if a method other than POST, PUT, or DELETE is passed to it.
    */
   
-  getOp: ({ method }) => new Map([[ 'POST', 'create' ],[ 'PUT', 'update' ],[ 'DELETE', 'delete' ]]).get(method) || false
+  getOp: ({ method }) => new Map([[ 'POST', 'create' ],[ 'PUT', 'update' ],[ 'DELETE', 'delete' ]]).get(method) || false,
+  
+  /**
+   *  Prints the current UTC time in a shorter ISO-8601 format than toISOString(), using the format YYYY-MM-ddTHHMM
+   *
+   *  @method shortISODateTime
+   *  @returns {string} The current UTC time formatted as YYYY-MM-ddTHHMM
+   */
+  
+  shortISODateTime: () => `${(new Date()).toLocaleDateString('en-CA')}T${(new Date()).toLocaleTimeString('en-DE').replace(/(?:\:[0-9]{2}$|\:)/g, '')}`
   
 }
