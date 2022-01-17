@@ -7,6 +7,7 @@ logs
 
 # Cache
 .cache
+.cachev1
 .tmp
 
 # Private data
