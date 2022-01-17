@@ -486,7 +486,7 @@ const processItems = async (videos, op, res = null) => {
 
   if (posted.length > 0) {
     const itemsToSync = posted.map((item) => ({
-      id: item.data.archiveLocation.match(/rec[\w]{14}$/)[0],
+      id: item.data.archiveLocation.match(/rec[\w]{14}?blocks=bipKEx011McOmAZW2$/)[0],
       fields: {
         'Zotero Key': item.key,
         'Zotero Version': item.version,
