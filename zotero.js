@@ -41,7 +41,7 @@ const parentCollections = new Map([
   ['topics', 'BCQLGFXZ']
 ]);
 
-/** @constant {Map} topics - Maps ESOVDB topics to their collection keys in Zotero */
+/** @constant {Map} topics - Maps ESOVDB video topics to their collection keys in Zotero */
 // prettier-ignore
 const topics = new Map([
   ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', 'B5X8MVCK'],
@@ -62,6 +62,25 @@ const topics = new Map([
   ['Planetary Geology, Impact Events, Astronomy, & the Search for Extraterrestrial Life', 'B3N9IR6X'],
   ['Paleobiology, Mass Extinctions, Fossils, & Evolution', 'YGF9LJ2V']
 ]);
+
+/** @constant {Map} formats - Maps ESOVDB video formats to their collection keys in Zotero */
+const formats = new Map([
+	['Documentary Film', 'MV4V7PF9'],
+	['Documentary Series', '4GCM3HVT'],
+	['Web Series', '8TEAT23B'],
+	['Short Film', '9F6QAX8A'],
+	['Lecture Recording', '8TRG9SUC'],
+	['Multiple Lecture Recording', '5KQ8MNNK'],
+	['Lecture & Panel Discussion Recording', 'TVNS7XSN'],
+	['Webinar', 'ZYD659LC'],
+	['Course', 'YEZKPWJ5'],
+	['Debate', '6PXVK5V9'],
+	['Interview', '7NG49SMQ'],
+	['Field Trip', '82GGF7RY'],
+	['Vlog', '6Y9DPY9L'],
+	['Podcast', 'KRTG2Y7W']
+]);
+
 
 /** @constant {number} zoteroRateLimit - Time in seconds to wait between requests to the Zotero API to avoid rate-limiting */
 const zoteroRateLimit = 10;
@@ -486,7 +505,7 @@ const processItems = async (videos, op, res = null) => {
 
   if (posted.length > 0) {
     const itemsToSync = posted.map((item) => ({
-      id: item.data.archiveLocation.match(/rec[\w]{14}?blocks=bipKEx011McOmAZW2$/)[0],
+      id: item.data.archiveLocation.match(/(rec[\w]{14})\?blocks=bipKEx011McOmAZW2$/)[1],
       fields: {
         'Zotero Key': item.key,
         'Zotero Version': item.version,
