@@ -557,9 +557,19 @@ const itemsObserver = {
     },
     err: (err) => { console.error(err) },
     complete: async () => {
-      const data = await batch.get('items', 'update');
-      processItems(data.sort(sortDates), 'update');   
-      console.log(`› Successfully batch updated ${data.length} item${data.length > 1 ? '' : 's'}.`);
+      try {
+        const data = await batch.get('items', 'update');
+        
+        if (data.length) {
+          processItems(data.sort(sortDates), 'update');   
+          console.log(`› Successfully batch updated ${data.length} item${data.length > 1 ? 's' : ''}.`);
+        } else {
+          throw new Error('[ERROR] No data sent for batch processing.');
+        }
+      } catch (err) {
+        console.error(err.message);
+      }
+      
       await batch.clear('items', 'update');
       clearTimeout(timer);
     }
@@ -576,9 +586,19 @@ const collectionsObserver = {
     },
     err: (err) => { console.error(err) },
     complete: async () => {
-      const data = await batch.get('collections', 'update');
-      processCollections(data, 'update');
-      console.log(`› Successfully batch updated ${data.length} collection${data.length > 1 ? '' : 's'}.`);
+      try {
+        const data = await batch.get('collections', 'update');
+        
+        if (data.length) {
+          processCollections(data, 'update');
+          console.log(`› Successfully batch updated ${data.length} collection${data.length > 1 ? 's' : ''}.`);
+        } else {
+          throw new Error('[ERROR] No data sent for batch processing.');
+        }
+        } catch (err) {
+          console.error(err.message);
+        }
+      
       await batch.clear('collections', 'update');
       clearTimeout(timer);
     }
