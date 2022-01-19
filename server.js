@@ -95,6 +95,16 @@ app.get('/v1/videos/youtube/:id?', [ middleware.validateReq, middleware.allowCOR
 });
 
 /**
+ *  API endpoint for selecting a single video ESOVDB, by its ESOVDB ID, returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
+ *  @requires esovdb
+ *  @callback esovdb.getVideoById
+ */
+
+app.get('/v1/videos/:id', [ middleware.auth, middleware.validateReq ], async (req, res) => {
+  await esovdb.getVideoById(req, res);
+});
+
+/**
  *  API endpoint for back-syncing Zotero data with the ESOVDB after adding or updating items on Zotero.
  *  @requires esovdb
  *  @callback esovdb.updateVideos

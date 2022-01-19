@@ -35,7 +35,16 @@ const regexYT = /^(?!rec)(?![\w\-]{12,})(?:.*youtu\.be\/|.*v=)?([\w\-]{10,12})&?
 
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 
-const format = {
+/** @constant {Object} videoFormat - A collection of formatting methods that can be used to transform ESOVDB Airtable output into different formats */
+const videoFormat = {
+  
+  /**
+   *  Formats a video from the ESOVDB according to the Zotero item template specification, returning each as a JavaScript Object
+   *
+   *  @method toZoteroJSON
+   *  @param {AirtableRecord} record - The Airtable record class instance to format
+   *  @returns {Object} An ESOVDB video, formatted according to the Zotero item template specification, for synchronizing with the Zotero library
+   */
   
   toZoteroJSON: (record) => ({
     zoteroKey: record.get('Zotero Key') || '',
@@ -67,9 +76,13 @@ const format = {
     modified: record.get('Modified'),
   }),
   
-//   toJSON: (record) => {
-//     // coming soon
-//   },
+  /**
+   *  Formats a video from the ESOVDB to a JavaScript Object with useful information for locating it in either the ESOVDB or the Zotero library, by its YouTube videoId, if it has one
+   *
+   *  @method toYTJSON
+   *  @param {AirtableRecord} record - The Airtable record class instance to format
+   *  @returns {Object} An ESOVDB video, formatted as a JavaScript Object with useful information for locating it in either the ESOVDB or the Zotero library, by its YouTube videoId, if it has one
+   */
   
   toYTJSON: (record) => ({
     videoId: record.get('YouTube Video ID') || '',
@@ -79,21 +92,39 @@ const format = {
     added: formatDate(record.get('ISO Added')) || ''
   }),
   
-  toCSV: (record) => {
-    
-  },
+  /**
+   *  @todo Will eventually format an Airtable record class instance as JavaScript Object, in a more neutral format than {@link toZoteroJSON} with all fields represented as properties, without changing their names from the original DB spec
+   */
   
-//   toXML: (video) => {
-//     // aspirational
-//   },
+   toJSON: (record) => ({ id: record.id, ...record._rawJson.fields }),
   
-//   toKML: (video) => {
-//     // aspirational
-//   },
+    /**
+     *  @method toCSV 
+     *  @todo Will eventually format an Airtable record class instance as a line in a CSV file to be included in a larger CSV response, i.e. with each field's value in order, separated by commas, and surrounded by double quotes, if the field's value contains a comma
+     */
   
-//   toGeoJSON: (video) => {
-//     // aspirational
-//   }
+//  toCSV: (record) => {},
+  
+     /**
+      *  @method toXML
+      *  @todo Will eventually format an Airtable record class instance as an XML object to be included in a larger XML response
+      */
+  
+//   toXML: (video) => {},
+  
+     /**
+      *  @method toKML
+      *  @todo Will eventually format an Airtable record class instance as an Google Earth KML object to be included in a larger Google Earth KML response, if the Airtable record has location data, such that the response can be imported into and plotted with Google Earth
+      */
+  
+//   toKML: (video) => {},
+  
+     /**
+      *  @method toGeoJSON
+      *  @todo Will eventually format an Airtable record class instance as an GeoJSON Object, if the Airtable record has location data, such that the response can be used with GIS software
+      */
+  
+//   toGeoJSON: (video) => {}
 }
 
 module.exports = {
@@ -107,14 +138,14 @@ module.exports = {
    *  @requires cache
    *  @requires util
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
-   *  @param {?number} [req.params.pg] - An Express.js route param optionally passed after videos/query, which specifies which page (one-indexed) of a given {@link pageSize} number records should be sent in the [server response]{@link res}
+   *  @param {number} [req.params.pg] - An Express.js route param optionally passed after videos/query, which specifies which page (one-indexed) of a given {@link pageSize} number records should be sent in the [server response]{@link res}
    *  @param {number} [req.query.pageSize=100] - An [http request]{@link req} URL query param that specifies how many Airtable records to return in each API call
-   *  @param {?number} [req.query.maxRecords] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
-   *  @param {?string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
-   *  @param {?string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
-   *  @param {?string} [req.query.youTube] - A YouTube video's URL, short URL, or video ID
+   *  @param {number} [req.query.maxRecords] - An [http request]{@link req} URL query param that specifies the maximum number of Airtable records that should be sent in the [server response]{@link res}
+   *  @param {string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
+   *  @param {string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
+   *  @param {string} [req.query.youTube] - A YouTube video's URL, short URL, or video ID
    *  @param {(!express:Response|Boolean)} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class, or false if not passed
-   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript object
+   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript Object
    *  @returns {Object[]} Array of ESOVDB video records as JavaScript objects (if no {@link res} object is provided)
    */
   
@@ -169,17 +200,17 @@ module.exports = {
     queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
     queryText += likeYTID ? `, matching YouTube ID "${likeYTID}"` : '';
     
-    console.log(`Performing videos/query ${res ? 'external' : 'internal'} API request ${queryText}…`);
+    console.log(`Performing videos/query ${res ? 'external' : 'internal'} API request ${queryText}...`);
 
     const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
 
     if (cachedResult !== null) {
-      console.log('Cache hit. Returning cached result for ' + req.url);
-      if (res) res.status(200).send(JSON.stringify(cachedResult));
+      console.log(`Cache hit. Returning cached result for ${req.url}...`);
+      if (res) return res.status(200).send(JSON.stringify(cachedResult));
       else return cachedResult;
     } else {
-      console.log('Cache miss. Loading from Airtable for ' + req.url);
+      console.log(`Cache miss. Loading from Airtable for ${req.url}...`);
 
       let data = [],
           pg = 0,
@@ -204,8 +235,8 @@ module.exports = {
           .eachPage(
             function page(records, fetchNextPage) {
               if (!req.params.pg || pg == req.params.pg) {
-                console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}…`);                
-                data = [ ...data, records.map((record) => format.toZoteroJSON(record)) ];
+                console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}...`);                
+                data = [ ...data, records.map((record) => videoFormat.toZoteroJSON(record)) ];
 
                 if (pg == req.params.pg) {
                   console.log(`[DONE] Retrieved ${data.length} records.`);
@@ -246,10 +277,10 @@ module.exports = {
    *  @requires Bottleneck
    *  @requires cache
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
-   *  @param {string} [req.params.id] - A YouTube video's URL, short URL, or video ID, passed last, as a required URL parameter
+   *  @param {string} [req.params.id] - URL parameter representing a YouTube video's URL, short URL, or video ID, passed last, as a required URL parameter.  Either this or req.query.id is required.
+   *  @param {string} [req.query.id] - URL query parameter representing a YouTube video's URL, short URL, or video ID, passed last, as a required URL parameter. Either this or req.params.id is required.
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
-   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
-   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript object
+   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript Object
    *  @returns {Object} Object with collection or properties for identifying and linking to an ESOVDB record on YouTube
    */
   
@@ -258,6 +289,8 @@ module.exports = {
     
     if (req.params.id && regexYT.test(decodeURIComponent(req.params.id))) {
       videoId = regexYT.exec(decodeURIComponent(req.params.id))[1];
+    } else if (req.query.id && regexYT.test(decodeURIComponent(req.query.id))) {
+      videoId = regexYT.exec(decodeURIComponent(req.query.id))[1];
     } else {
       if (res) {
         return res.status(400).send('Missing parameter "id".');
@@ -266,17 +299,17 @@ module.exports = {
       }
     }
     
-    console.log(`Performing videos/youtube ${res ? 'external' : 'internal'} API request for YouTube ID "${videoId}"…`);
+    console.log(`Performing videos/youtube ${res ? 'external' : 'internal'} API request for YouTube ID "${videoId}"...`);
 
     const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
 
     if (cachedResult !== null) {
-      console.log('Cache hit. Returning cached result for ' + req.url);
+      console.log(`Cache hit. Returning cached result for ${req.url}...`);
       if (res) return res.status(200).send(JSON.stringify(cachedResult));
       else return cachedResult;
     } else {
-      console.log('Cache miss. Loading from Airtable for ' + req.url);
+      console.log(`Cache miss. Loading from Airtable for ${req.url}...`);
 
       let data = [],
           options = {
@@ -293,7 +326,7 @@ module.exports = {
           .select(options)
           .eachPage(
             function page(records, fetchNextPage) {
-                data = [ ...data, records.map((record) => format.toYTJSON(record)) ];
+                data = [ ...data, records.map((record) => videoFormat.toYTJSON(record)) ];
                 fetchNextPage();
             },
             function done(err) {
@@ -316,6 +349,65 @@ module.exports = {
       );
       
       if (!res && data.length > 0) return data[0];
+    }
+  },
+  
+  /**
+   *  Given a single ESOVDB Airtable record ID, returns that video's ESOVDB Airtable record data, in a neutral JSON format
+   *
+   *  @method getVideoById
+   *  @requires Airtable
+   *  @requires Bottleneck
+   *  @requires cache
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {string} [req.params.id] - A video's ESOVDB Airtable record ID, passed as a URL query parameter.  Either this or req.query.id is required.
+   *  @param {string} [req.query.id] - A video's ESOVDB Airtable record ID, passed as a URL query parameter. Either this or req.params.id is required.
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
+   *  @sideEffects Selects a single record from the ESOVDB Airtable base, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript Object
+   *  @returns {Object} A JavaScript Object representing the entire Airtable record matching the specified video's ESOVDB Airtable record ID, with all of its fields
+   */
+  
+  getVideoById: (req, res) => {
+    const id = req.params.id || req.query.id || null;
+
+    if (id && /^rec[\w]{14}$/.test(id)) {
+      const cachePath = `.cache${req.url}.json`;
+      const cachedResult = cache.readCacheWithPath(cachePath);
+
+      if (cachedResult !== null) {
+        console.log(`Cache hit. Returning cached result for ${req.url}...`);
+        if (res) return res.status(200).send(JSON.stringify(cachedResult));
+        else return cachedResult;
+      } else {
+        console.log(`Cache miss. Loading from Airtable for ${req.url}...`);
+      
+        try {
+          rateLimiter.wrap(
+            base('Videos')
+              .find(req.params.id, function(error, record) {
+                if (error) {
+                  console.error(`[ERROR] Unable to find record "${id}".`);
+                  if (res) return res.status(404).send('Unable to find matching record.');
+                  else return;
+                } else {
+                  const data = videoFormat.toJSON(record);
+                  console.log(`[DONE] Retrieved record "${id}".`);
+                  cache.writeCacheWithPath(cachePath, data);
+                  if (res) return res.status(200).send(JSON.stringify(data));
+                  else return data;
+                }
+              })
+          );
+        } catch (err) {
+          console.error(`[ERROR] ${err.message}.`);
+          if (res) return res.status(404).send(err.message);
+          else return;
+        }
+      }
+    } else {
+      console.error(`[ERROR] Invalid or no ESOVDB record ID specified.`);
+      if (res) return res.status(400).send('Invalid or no ESOVDB record ID specified.');
+      else return;
     }
   },
   
@@ -344,7 +436,7 @@ module.exports = {
                 ? updates.length
                 : 10)
             : ''
-        } of ${queue} total…`
+        } of ${queue} total...`
       );
 
       i++, rateLimiter.wrap(base(table).update(updates.splice(0, 10)));
@@ -365,7 +457,7 @@ module.exports = {
   
   updateTable: async (req, res) => {
     if (req.body.length > 0) {
-      console.log(`Performing ${req.params.table}/update API request for ${req.body.length} record${req.body.length === 1 ? '' : 's'}…`);
+      console.log(`Performing ${req.params.table}/update API request for ${req.body.length} record${req.body.length === 1 ? '' : 's'}...`);
       const data = await module.exports.processUpdates(req.body, tables.get(req.params.table));
       res.status(200).send(JSON.stringify(data));
     }
@@ -416,7 +508,7 @@ module.exports = {
   
   getLatest: async (req, res = false) => {
     try {
-      console.log(`Performing videos/all ${res ? 'external' : 'internal'} API request…`);
+      console.log(`Performing videos/all ${res ? 'external' : 'internal'} API request...`);
       const latest = await module.exports.updateLatest(req.headers && req.headers['esovdb-no-cache'] && req.headers['esovdb-no-cache'] === process.env.ESOVDB_NO_CACHE ? false : true);
       if (res) res.status(200).send(JSON.stringify(latest));
       else return latest;

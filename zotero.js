@@ -38,7 +38,9 @@ zoteroLibrary.defaults.headers.post['Content-Type'] = 'application/json';
 /** @constant {Map} parentCollections - Maps parent collections names from the ESOVDB to parent collection IDs in the Zotero library */
 const parentCollections = new Map([
   ['series', 'HYQEFRGR'],
-  ['topics', 'BCQLGFXZ']
+  ['topics', 'BCQLGFXZ'],
+  ['formats', '3CLRI56S'],
+  ['tags', 'D8WXS5QM']
 ]);
 
 /** @constant {Map} topics - Maps ESOVDB video topics to their collection keys in Zotero */
@@ -88,6 +90,7 @@ const zoteroRateLimit = 10;
 /**
  *  Updates specified fields for given items in a specified ESOVDB table via {@link esovdb.processUpdates} and then returns the result for logging
  *
+ *  @private
  *  @async
  *  @function updateTable
  *  @requires esovdb:processUpdates
@@ -117,6 +120,7 @@ const updateTable = async (items, table) => {
 /**
  *  Fetches a fresh 'videoRecording' template from Zotero with which to structure items in posts to the Zotero API
  *
+ *  @private
  *  @async
  *  @function getTemplate
  *  @requires axios
@@ -151,6 +155,7 @@ const getTemplate = async () => {
 /**
  *  Adds or updates one or more objects in a Zotero Library depending on whether a given object is passed with Zotero key and version properties and returns a {@link ZoteroResponse} object from the Zotero API.
  *
+ *  @private
  *  @async
  *  @function postItems
  *  @requires axios
@@ -182,6 +187,7 @@ const postItems = async (path, items) => {
 /**
  *  Deletes one or more objects from a Zotero Library and returns a {@link ZoteroResponse} object from the Zotero API.
  *
+ *  @private
  *  @async
  *  @function deleteItems
  *  @requires axios
@@ -217,6 +223,7 @@ const deleteItems = async (items, kind, res = false) => {
 /**
  *  Converts raw data for a single video from the ESOVDB into a format that can be accepted by Zotero in a single- or multiple-item write request
  *
+ *  @private
  *  @async
  *  @function formatItems
  *  @requires fs
@@ -281,7 +288,7 @@ const formatItems = async (video, template) => {
     rights: '',
     extra: extras.map((item) => item.title + ': ' + item.value).join('\n'),
     tags: video.tags ? video.tags.map((tag) => ({ tag })) : [],
-    collections: topics.get(video.topic) ? [ topics.get(video.topic) ] : [],
+    collections: [],
     relations: {},
   };
   
@@ -289,6 +296,9 @@ const formatItems = async (video, template) => {
     payload.key = video.zoteroKey;
     payload.version = video.zoteroVersion;
   }
+  
+  if (video.topic) payload.collections.push(topics.get(video.topic));
+  if (video.format) payload.collections.push(formats.get(video.format));
   
   if (video.series) {
     if (video.zoteroSeries) {
@@ -323,6 +333,7 @@ const formatItems = async (video, template) => {
 /**
  *  Takes a single video or array of videos successfully synced with Zotero and broadcasts them through a specified channel.
  *
+ *  @private
  *  @async
  *  @function broadcastItems
  *  @param {string} channel - A string representation of a broadcast/social media channel (e.g. 'discord' or 'twitter')
@@ -369,6 +380,7 @@ const broadcastItems = async (channel, videos) => {
 /**
  *  Takes a single ESOVDB series record or an array of ESOVDB series records from Airtable sent through either POST or PUT [requests]{@link req} to this server's /zotero/collections API endpoint, maps those requested series objects to an array valid new or updated Zotero collections (depending on whether a Zotero key and version are passed), attempts to POST that array of formatted collections to a Zotero library using {@link postItems}, and then syncs the updated Zotero version (if updated) or newly acquired Zotero key and version (if created) back with the ESOVDB for each collection successfully posted to the Zotero library, using {@link updateTable}, sending a server response of 200 with the JSON of any successfully updated/added collections.
  *
+ *  @private
  *  @async
  *  @function processCollections
  *  @param {(Object|Object[])} series - A single object or array of objects representing records from the ESOVDB series table in Airtable sent through an ESOVDB Airtable automation
@@ -456,6 +468,7 @@ const processCollections = async (series, op, res = null) => {
 /**
  *  Takes a single ESOVDB video record or an array of ESOVDB video records from Airtable sent through either POST or PUT [requests]{@link req} to this server's zotero/items API endpoint, retrieves a new item template from the Zotero API using {@link getTemplate}, maps those requested video objects to an array valid new or updated Zotero items (depending on whether a Zotero key and version are passed) using {@link formatItems}, attempts to POST that array of formatted items to a Zotero library using {@link postItems}, and then syncs the updated Zotero version (if updated) or newly acquired Zotero key and version (if created) back with the ESOVDB for each item successfully posted to the Zotero library, using {@link updateTable}, sending a server response of 200 with the JSON of any successfully updated/added items.
  *
+ *  @private
  *  @async
  *  @function processItems
  *  @param {(Object|Object[])} videos - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
@@ -559,9 +572,10 @@ const itemsObserver = {
     complete: async () => {
       try {
         const data = await batch.get('items', 'update');
+        console.log(`Attempting to batch process ${data ? data.length : '0'} item${data.length > 1 ? 's' : ''}...`);
         
         if (data.length) {
-          processItems(data.sort(sortDates), 'update');   
+          await processItems(data.sort(sortDates), 'update');   
           console.log(`› Successfully batch updated ${data.length} item${data.length > 1 ? 's' : ''}.`);
         } else {
           throw new Error('[ERROR] No data sent for batch processing.');
@@ -588,9 +602,10 @@ const collectionsObserver = {
     complete: async () => {
       try {
         const data = await batch.get('collections', 'update');
+        console.log(`Attempting to batch process ${data ? data.length : '0'} collection${data.length > 1 ? 's' : ''}...`);
         
         if (data.length) {
-          processCollections(data, 'update');
+          await processCollections(data, 'update');
           console.log(`› Successfully batch updated ${data.length} collection${data.length > 1 ? 's' : ''}.`);
         } else {
           throw new Error('[ERROR] No data sent for batch processing.');
@@ -636,7 +651,7 @@ module.exports = {
         case 'create':
           if (records[0].batch && records[0].batchSize > 1) {
             let data = [];
-            await batch.size(kind, op) === 0 && console.log(`Processing batch create request of ${records[0].batchSize} ${kind}…`);
+            await batch.size(kind, op) === 0 && console.log(`Processing batch create request of ${records[0].batchSize} ${kind}...`);
             data = await batch.append(op, kind, records);
             console.log(`› Added ${kind.substr(0, kind.length - 1)} ${data.length} of ${records[0].batchSize} to batch for creation.`);
             
@@ -657,7 +672,7 @@ module.exports = {
               return res.status(202).send(data);
             }
           } else {
-            console.log(`Processing single create ${kind.substr(0, kind.length - 1)} request…`);
+            console.log(`Processing single create ${kind.substr(0, kind.length - 1)} request...`);
             switch (kind) {
               case 'items':
                 await processItems(records, op, res);
@@ -672,7 +687,7 @@ module.exports = {
           }
           break;
         case 'update':
-          console.log(`Processing update ${kind} request (length unknown)…`);
+          console.log(`Processing update ${kind} request (length unknown)...`);
           switch (kind) {
             case 'items':
               itemsStream.next([ req, res ]);
@@ -690,7 +705,7 @@ module.exports = {
         case 'delete':
           if (records[0].batch && records[0].batchSize > 50) {
             let data = [];
-            await batch.size(kind, op) === 0 && console.log(`Processing batch delete request of ${records[0].batchSize} ${kind}…`);
+            await batch.size(kind, op) === 0 && console.log(`Processing batch delete request of ${records[0].batchSize} ${kind}...`);
             data = await batch.append(op, kind, records);
             console.log(`› Added ${kind.substr(0, kind.length - 1)} ${data.length} of ${records[0].batchSize} to batch for deletion.`);
             
@@ -702,7 +717,7 @@ module.exports = {
               return res.status(202).send(data);
             }
           } else {
-            console.log(`Processing delete request for ${records.length} ${kind.substr(0, kind.length - 1)}${records.length === 1 ? '' : 's'}…`);
+            console.log(`Processing delete request for ${records.length} ${kind.substr(0, kind.length - 1)}${records.length === 1 ? '' : 's'}...`);
             await deleteItems(records, kind, res);
           }
           break;
