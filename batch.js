@@ -1,6 +1,6 @@
 /**
  *  @file Batch Processing for ESOVDB Items using Redis to share batch state between instances of node running in a PM2 cluster
- *  @author Avana Vana <dear.avana@gmail.com>
+ *  @author Avana Vana <avana@esovdb.org>
  *  @version 4.0.0
  *  @module batch
  */

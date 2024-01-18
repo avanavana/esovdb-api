@@ -1,6 +1,6 @@
 /**
  *  @file Common cache methods
- *  @author Avana Vana <dear.avana@gmail.com>
+ *  @author Avana Vana <avana@esovdb.org>
  *  @module cache
  */
 

@@ -1,6 +1,6 @@
 /**
  *  @file Webhook Functions
- *  @author Avana Vana <dear.avana@gmail.com>
+ *  @author Avana Vana <avana@esovdb.org>
  *  @module webhooks
  */
 
@@ -14,7 +14,7 @@ const { getOp, truncate, stringifyCreators, queueAsync } = require('./util');
 const webhooks = new WebHooks({ db: process.env.WEBHOOKS_DB });
 
 /** @constant {string[]} canon - Canonical list of webhook events that can be subscribed to */
-const canon = [ 'videos.create', 'videos.update', 'videos.delete', 'series.create', 'series.update', 'series.delete' ];
+const canon = [ 'videos.create', 'videos.update', 'videos.delete', 'series.create', 'series.update', 'series.delete', 'tags.create', 'tags.update', 'tags.delete' ];
 
 /** @constant {RegExp} regexYT - Regular expression for matching and extracting a YouTube videoId from a URL or on its own */
 const regexYT = /^(?!rec)(?![\w\-]{12,})(?:.*youtu\.be\/|.*v=)?([\w\-]{10,12})&?.*$/;
@@ -94,7 +94,7 @@ const actions = new Map([
    *  @async
    *  @method create
    *  @param {string[]} events - An array of one or more webhook event name strings from the [canonical set]{@link canon}
-   *  @param {string} callback - A valid URL for the webhook to call back after an event is triggered
+   *  @param {string} callbackUrl - A valid URL for the webhook to call back after an event is triggered
    *  @returns {WebhooksDBResponse} - The final tally of all [canonical webhook events]{@link canon} added, unchanged, or failed as a result of this action on the {@link webhooks} database
    *  @sideEffects Adds a callback URL to each webhook event included in the {@link events} array in the {@link webhooks} database, if it has not already been added
    *
@@ -107,15 +107,15 @@ const actions = new Map([
    *  // returns { added: [ 'videos.delete' ], unchanged: [ 'videos.update' ], failed: [ 'series.create' ] }
    */
 
-  ['create', async (events, callback) => {
+  ['create', async (events, callbackUrl) => {
     let added = [], unchanged = [], failed = [];
 
     for await (let e of events) {
-      if (webhooksDb()[e] && webhooksDb()[e].includes(callback)) {
+      if (webhooksDb()[e] && webhooksDb()[e].includes(callbackUrl)) {
         unchanged.push(e);
         continue;
       } else {
-        const response = await webhooks.add(e, callback);
+        const response = await webhooks.add(e, callbackUrl);
         if (response) added.push(e);
         else failed.push(e);
       }
@@ -130,7 +130,7 @@ const actions = new Map([
    *  @async
    *  @method update
    *  @param {string[]} events - An array of one or more webhook event name strings from the [canonical set]{@link canon}
-   *  @param {string} callback - A valid URL for the webhook to call back after an event is triggered
+   *  @param {string} callbackUrl - A valid URL for the webhook to call back after an event is triggered
    *  @returns {WebhooksDBResponse} - The final tally of all [canonical webhook events]{@link canon} added, removed, unchanged, or failed as a result of this action on the {@link webhooks} database
    *  @sideEffects Removes any callback URLs assigned to webhook events not included in the {@link events} array from the {@link webhooks} database and then adds a callback URL to each webhook event included in the {@link events} array, if it has not already been added
    *
@@ -140,21 +140,21 @@ const actions = new Map([
    *  // returns { added: [ 'videos.delete' ], removed: [ 'videos.update', 'series.create' ], unchanged: [ 'videos.create' ], failed: [] }
    */
 
-  ['update', async (events, callback) => {
+  ['update', async (events, callbackUrl) => {
     let added = [], removed = [], unchanged = [], failed = [];
 
-    const eventsToRemove = Object.keys(webhooksDb()).filter((k) => !events.includes(k)).map((e) => ({ name: e, callbacks: webhooksDb()[e] })).filter((i) => i.callbacks.includes(callback)).map((i) => i.name);
-    const eventsToAdd = events.filter((e) => !webhooksDb()[e] || (webhooksDb()[e] && !webhooksDb()[e].includes(callback)));
+    const eventsToRemove = Object.keys(webhooksDb()).filter((k) => !events.includes(k)).map((e) => ({ name: e, callbackUrls: webhooksDb()[e] })).filter((i) => i.callbackUrls.includes(callbackUrl)).map((i) => i.name);
+    const eventsToAdd = events.filter((e) => !webhooksDb()[e] || (webhooksDb()[e] && !webhooksDb()[e].includes(callbackUrl)));
     unchanged.push(...events.filter((e) => !eventsToRemove.includes(e) && !eventsToAdd.includes(e)));
 
     for await (let e of eventsToRemove) {
-      const response = await webhooks.remove(e, callback);
+      const response = await webhooks.remove(e, callbackUrl);
       if (response) removed.push(e);
       else failed.push(e);
     }
 
     for await (let e of eventsToAdd) {
-      const response = await webhooks.add(e, callback);
+      const response = await webhooks.add(e, callbackUrl);
       if (response) added.push(e);
       else failed.push(e);
     }
@@ -168,7 +168,7 @@ const actions = new Map([
    *  @async
    *  @method delete
    *  @param {string[]} events - An array of one or more webhook event name strings from the [canonical set]{@link canon}
-   *  @param {string} callback - A valid URL for the webhook to call back after an event is triggered
+   *  @param {string} callbackUrl - A valid URL for the webhook to call back after an event is triggered
    *  @returns {WebhooksDBResponse} - The final tally of all [canonical webhook events]{@link canon} added, removed, unchanged, or failed as a result of this action on the {@link webhooks} database
    *  @sideEffects Removes a callback URL from each webhook event included in the {@link events} array in the {@link webhooks} database, if the {@link callback} URL has an active subscription to that webhook event in the {@link webhooks} database
    *
@@ -183,12 +183,12 @@ const actions = new Map([
    *  // returns { removed: [ 'videos.delete' ], unchanged: [], failed: [ 'series.create' ] }
    */
   
-  ['delete', async (events, callback) => {
+  ['delete', async (events, callbackUrl) => {
     let removed = [], unchanged = [], failed = [];
 
     for await (let e of events) {
-      if (webhooksDb()[e] && webhooksDb()[e].includes(callback)) {
-        const response = await webhooks.remove(e, callback);
+      if (webhooksDb()[e] && webhooksDb()[e].includes(callbackUrl)) {
+        const response = await webhooks.remove(e, callbackUrl);
         if (response) removed.push(e);
         else failed.push(e);
       } else {
@@ -264,7 +264,7 @@ const message = (payload, provider, action) => {
     case 'discord-newSubmission':
       return itemToDiscord(`New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`, payload);
     case 'discord-userSubmission':
-      return { content: `<@${payload.submitter}> Submission received! Thanks for your contribution of "${payload.title}" to the ESOVDB!` };
+      return { content: `<@${payload.submittedBy}> Submission received! Thanks for your contribution of "${payload.title}" to the ESOVDB!` };
     default:
       throw new Error('[ERROR] No provider or action given.');
     }
@@ -330,7 +330,7 @@ module.exports = {
     try {
       if (!req.query.url) return res.status(200).send(JSON.stringify(canon));
       if (req.query.url && !regexURL.test(decodeURIComponent(req.query.url))) { code = 400; throw new Error('Missing or malformed "url" query parameter.'); }
-      const events = Object.keys(webhooksDb()).map((k) => ({name: k, callbacks: webhooksDb()[k]})).filter((event) => event.callbacks.includes(decodeURIComponent(req.query.url))).map((event) => event.name);
+      const events = Object.keys(webhooksDb()).map((k) => ({ name: k, callbacks: webhooksDb()[k] })).filter((event) => event.callbacks.includes(decodeURIComponent(req.query.url))).map((event) => event.name);
       if (!events || events.length === 0) { code = 404; throw new Error(`No webhook event(s) found for callback URL "${decodeURIComponent(req.query.url)}".`); }
       console.log(`[DONE] Retrieved ${events.length} webhook event(s).`);
       return res.status(200).send(JSON.stringify(events));

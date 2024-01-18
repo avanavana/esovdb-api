@@ -1,6 +1,6 @@
 /**
  *  @file ESOVDB Airtable API methods
- *  @author Avana Vana <dear.avana@gmail.com>
+ *  @author Avana Vana <avana@esovdb.org>
  *  @module esovdb
  *  @see {@link https://airtable.com/shrFBKQwGjstk7TVn|The Earth Science Online Video Database}
  */
@@ -9,6 +9,7 @@ const dotenv = require('dotenv').config();
 const Airtable = require('airtable');
 const Bottleneck = require('bottleneck');
 const cache = require('./cache');
+const { getVideo } = require('./youtube');
 const { formatDuration, formatDate, packageAuthors, sleep } = require('./util');
 
 const base = new Airtable({
@@ -33,7 +34,17 @@ const airtableRateLimit = 1005 / 5;
 /** @constant {RegExp} regexYT - Regular expression for matching and extracting a YouTube videoId from a URL or on its own */
 const regexYT = /^(?!rec)(?![\w\-]{12,})(?:.*youtu\.be\/|.*v=)?([\w\-]{10,12})&?.*$/;
 
+/** @constant {RegExp} regexYTVideoId - Regular expression for matching and extracting a YouTube videoId purely on its own */
+const regexYTVideoId = /[\w\-]{10,12}/;
+
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
+
+/** @constant {Map} formatFields - Maps each format, as passed in the URL query params to a list of fields that Airtable should retrieve, for that format. */
+const formatFields = new Map([
+  ['zotero', [ 'Zotero Key', 'Zotero Version', 'Series Zotero Key', 'Title', 'URL', 'Year', 'Description', 'Running Time', 'Format', 'Topic', 'Tags', 'Learn More', 'Series Text', 'Series Count Text', 'Vol.', 'No.', 'Publisher Text', 'Presenter First Name', 'Presenter Last Name', 'Language Code', 'Location', 'Plus Code', 'Video Provider', 'ESOVDBID', 'Record ID', 'ISO Added', 'Created', 'Modified' ]],
+  ['yt', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]],
+  ['youtube', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]]
+]);
 
 /** @constant {Object} videoFormat - A collection of formatting methods that can be used to transform ESOVDB Airtable output into different formats */
 const videoFormat = {
@@ -93,7 +104,11 @@ const videoFormat = {
   }),
   
   /**
-   *  @todo Will eventually format an Airtable record class instance as JavaScript Object, in a more neutral format than {@link toZoteroJSON} with all fields represented as properties, without changing their names from the original DB spec
+   *  Formats a video from the ESOVDB to a JavaScript object from the raw JSON provided by Airtable, including all available fields.
+   *
+   *  @method toJSON
+   *  @param {AirtableRecord} record - The Airtable record class instance to format
+   *  @returns {Object} An ESOVDB video, formatted as a JavaScript Object based on the raw JSON response from Airtable, including all available fields.
    */
   
    toJSON: (record) => ({ id: record.id, ...record._rawJson.fields }),
@@ -125,6 +140,30 @@ const videoFormat = {
       */
   
 //   toGeoJSON: (video) => {}
+}
+
+/**
+   *  Maps a URL query parameter for video format to the appropriate formatting function
+   *
+   *  @function getFormat
+   *  @param {Function} [def=videoFormat.toZoteroJSON] - The default formatting function to use, if no 'format' URL query parameter is sent with the request
+   *  @param {string} [param=null] - The value of the URL query parameter 'format', sent with the request
+   *  @returns {Function} A formatting method from the {@link videoFormat} object mapped to the URL query parameter, or by default, the {@link videoFormat.toZoteroJSON} method
+   */
+
+const getFormat = (param = null, def = videoFormat.toZoteroJSON) => {
+  switch (param) {
+    case 'raw':
+    case 'json':
+      return videoFormat.toJSON;
+    case 'zotero':
+      return videoFormat.toZoteroJSON;
+    case 'yt':
+    case 'youtube':
+      return videoFormat.toYTJSON;
+    default:
+      return def;
+  }
 }
 
 module.exports = {
@@ -219,10 +258,10 @@ module.exports = {
           options = {
             pageSize: ps,
             view: 'All Online Videos',
-            sort: [{ field: 'Modified', direction: 'desc' }],
-            fields: [ 'Zotero Key', 'Zotero Version', 'Series Zotero Key', 'Title', 'URL', 'Year', 'Description', 'Running Time', 'Format', 'Topic', 'Tags', 'Learn More', 'Series Text', 'Series Count Text', 'Vol.', 'No.', 'Publisher Text', 'Presenter First Name', 'Presenter Last Name', 'Language Code', 'Location', 'Plus Code', 'Video Provider', 'ESOVDBID', 'Record ID', 'ISO Added', 'Created', 'Modified' ],
+            sort: [{ field: 'Modified', direction: 'desc' }]
           };
-
+      
+      if (formatFields.get(req.query.format)) options.fields = formatFields.get(req.query.format);
       if (req.query.maxRecords && !req.params.pg) options.maxRecords = +req.query.maxRecords;
       if (modifiedAfter) filterStrings.push(`IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`);
       if (createdAfter) filterStrings.push(`IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`);
@@ -236,7 +275,7 @@ module.exports = {
             function page(records, fetchNextPage) {
               if (!req.params.pg || pg == req.params.pg) {
                 console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}...`);                
-                data = [ ...data, records.map((record) => videoFormat.toZoteroJSON(record)) ];
+                data = [ ...data, ...records.map((record) => getFormat(req.query.format, videoFormat.toZoteroJSON)(record)) ];
 
                 if (pg == req.params.pg) {
                   console.log(`[DONE] Retrieved ${data.length} records.`);
@@ -317,16 +356,17 @@ module.exports = {
             maxRecords: 1,
             view: 'All Online Videos',
             sort: [{ field: 'Created' }],
-            filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${videoId}"))`,
-            fields: [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ],
+            filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${videoId}"))`
           };
+      
+      options.fields = formatFields.get(req.query.format) ? formatFields.get(req.query.format) : formatFields.get('youtube');
       
       rateLimiter.wrap(
         base('Videos')
           .select(options)
           .eachPage(
             function page(records, fetchNextPage) {
-                data = [ ...data, records.map((record) => videoFormat.toYTJSON(record)) ];
+                data = [ ...data, ...records.map((record) => getFormat(req.query.format, videoFormat.toYTJSON)(record)) ];
                 fetchNextPage();
             },
             function done(err) {
@@ -390,7 +430,7 @@ module.exports = {
                   if (res) return res.status(404).send('Unable to find matching record.');
                   else return;
                 } else {
-                  const data = videoFormat.toJSON(record);
+                  const data = getFormat(req.query.format, videoFormat.toJSON)(record);
                   console.log(`[DONE] Retrieved record "${id}".`);
                   cache.writeCacheWithPath(cachePath, data);
                   if (res) return res.status(200).send(JSON.stringify(data));
@@ -515,6 +555,33 @@ module.exports = {
     } catch (err) {
       if (res) res.status(400).end(JSON.stringify(err));
       else throw new Error(err.message);
+    }
+  },
+  
+  newVideoSubmission: async (req, res) => {
+    try {
+      if (!regexYTVideoId.test(req.params.id)) return res.status(400).send('Invalid YouTube Video ID.');
+      const video = await getVideo(req.params.id);
+      
+      const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
+      
+      rateLimiter.wrap(
+        base('Submissions').create({
+          'Title': video.title || '',
+          'URL': `https://youtu.be/${video.id}`,
+          'Description': video.description || '',
+          'Year': +video.year || null,
+          'Running Time': +video.duration || null,
+          'Medium': 'Online Video',
+          'Submission Source': 'Is YouTube Video on ESOVDB?',
+          'Submitted by': ip || ''
+        }, function(err, record) {
+          if (err) throw new Error(err); 
+          console.log(`Successfully created new submission on ESOVDB for YouTube video "${video.title || 'Title Unknown'}" (https://youtu.be/${video.id}).`);
+          return res.status(200).send(JSON.stringify(video));
+        }));
+    } catch (err) {
+      res.status(400).end(JSON.stringify(err));
     }
   }
 };

@@ -1,6 +1,6 @@
 /**
  *  @file Common utility methods
- *  @author Avana Vana <dear.avana@gmail.com>
+ *  @author Avana Vana <avana@esovdb.org>
  *  @module util
  */
 
@@ -236,8 +236,34 @@ module.exports = {
       : Math.floor((duration % 3600) / 60),
     module.exports.pad(Math.floor(duration % 60), 2),
     ]
-      .filter((i) => +i !== 0)
+      .filter((t, i, a) => +t !== 0 || i === a.length - 1)
       .join(':'),
+  
+  /**
+   *  Converts a YouTube (ISO-8601) duration to seconds
+   *
+   *  @method formatYTDuration
+   *  @param {string} duration - An ISO-8601 duration string
+   *  @returns {number} The ISO-8601 duration, converted into seconds
+   *
+   *  @example
+   *  // returns 122
+   *  formatYTDuration('PT2M2S');
+   *
+   *  @example
+   *  // returns 8403
+   *  formatYTDuration('PT2H20M3S');
+   *
+   *  @example
+   *  // returns 3640
+   *  formatYTDuration('PT1H40S');
+   */
+  
+  formatYTDuration: (duration) => {
+    let hours, minutes, seconds;
+    [ , hours = 0, minutes = 0, seconds = 0 ] = /^PT(?:([0-9]+)H)?(?:([0-9]+)M)?(?:([0-9]+)S)?/.exec(duration);
+    return ((+hours) * 3600) + ((+minutes) * 60) + (+seconds);
+  },
   
   /**
    *  Returns an array of IP addresses from a string of space separated IP patterns, expanding any wildcard characters (*)

@@ -1,9 +1,9 @@
 {
-  "name": "airtable-api-proxy",
-  "version": "3.0.2",
-  "description": "Provides a cache proxy service for accessing the Earth Science Online Video Database.",
+  "name": "esovdb-api",
+  "version": "3.2.0",
+  "description": "Public and private API access to the Earth Science Online Video Database.",
   "homepage": "https://airtable.com/shrFBKQwGjstk7TVn",
-  "author": "Avana Vana <dear.avana@gmail.com> (http://www.avanavana.com)",
+  "author": "Avana Vana <avana@esovdb.org> (http://www.avanavana.com)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -25,7 +25,7 @@
     "twitter-api-v2": "^1.6.5"
   },
   "repository": {
-    "url": "https://github.com/avanavana/airtable-api-proxy"
+    "url": "https://github.com/avanavana/esovdb-api"
   },
   "license": "MIT",
   "keywords": [
@@ -42,6 +42,7 @@
     "geology",
     "zotero",
     "discord",
-    "webhook"
+    "webhook",
+    "redis"
   ]
 }

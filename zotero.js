@@ -1,6 +1,6 @@
 /**
  *  @file Zotero Web API 3.0 sync methods and utility functions
- *  @author Avana Vana <dear.avana@gmail.com>
+ *  @author Avana Vana <avana@esovdb.org>
  *  @module zotero
  *  @see [Zotero Web API 3.0 › Write Requests]{@link www.zotero.org/support/dev/web_api/v3/write_requests}
  */
@@ -14,11 +14,12 @@ const twitter = require('./twitter');
 const batch = require('./batch');
 const { processUpdates } = require('./esovdb');
 const { sleep, queueAsync, formatDuration, formatDate, packageAuthors, getOp, sortDates, shortISODateTime } = require('./util');
+const { parentCollections, topics, formats, seriesSections, tagSections, tagCategories, tags } = require('./mappings');
 
 const zoteroHeaders = {
   Authorization: 'Bearer ' + process.env.ZOTERO_API_KEY,
   'Zotero-API-Version': '3',
-  'User-Agent': 'airtable-api-proxy/1.0.0',
+  'User-Agent': 'esovdb-api/3.2.0',
 };
 
 const zoteroLibrary = axios.create({
@@ -35,57 +36,20 @@ const zotero = axios.create({
 
 zoteroLibrary.defaults.headers.post['Content-Type'] = 'application/json';
 
-/** @constant {Map} parentCollections - Maps parent collections names from the ESOVDB to parent collection IDs in the Zotero library */
-const parentCollections = new Map([
-  ['series', 'HYQEFRGR'],
-  ['topics', 'BCQLGFXZ'],
-  ['formats', '3CLRI56S'],
-  ['tags', 'D8WXS5QM']
-]);
-
-/** @constant {Map} topics - Maps ESOVDB video topics to their collection keys in Zotero */
-// prettier-ignore
-const topics = new Map([
-  ['Mantle Geodynamics, Geochemistry, Convection, Rheology, & Seismic Imaging and Modeling', 'B5X8MVCK'],
-  ['Igneous & Metamorphic Petrology, Volcanism, & Hydrothermal Systems', 'KXQG7TMT'],
-  ['Alluvial, Pluvial & Terrestrial Sedimentology, Erosion & Weathering, Geomorphology, Karst, Groundwater & Provenance', 'V8I78D2H'],
-  ['Early Earth, Life\'s Origins, Deep Biosphere, and the Formation of the Planet', 'L4SALFT8'],
-  ['Geological Stories, News, Tours, & Field Trips', 'SGBYID8N'],
-  ['History, Education, Careers, Field Work, Economic Geology, & Technology', 'CXHVI9V2'],
-  ['Glaciation, Atmospheric Science, Carbon Cycle, & Climate', 'FDY7EJ8V'],
-  ['The Anthropocene', 'K9SFXQHJ'],
-  ['Geo-Archaeology', 'TZE9CCSM'],
-  ['Paleoclimatology, Isotope Geochemistry, Radiometric Dating, Deep Time, & Snowball Earth', 'AH3P8UQB'],
-  ['Seafloor Spreading, Oceanography, Paleomagnetism, & Geodesy', 'BNKPMCWG'],
-  ['Tectonics, Terranes, Structural Geology, & Dynamic Topography', 'N96Q2P6H'],
-  ['Seismology, Mass Wasting, Tsunamis, & Natural Disasters', 'I2GP8YUQ'],
-  ['Minerals, Mining & Resources, Crystallography, & Solid-state Chemistry', '7GA4BWHF'],
-  ['Marine & Littoral Sedimentology, Sequence Stratigraphy, Carbonates, Evaporites, Coal, Petroleum, and Mud Volcanism', '5VEL36SF'],
-  ['Planetary Geology, Impact Events, Astronomy, & the Search for Extraterrestrial Life', 'B3N9IR6X'],
-  ['Paleobiology, Mass Extinctions, Fossils, & Evolution', 'YGF9LJ2V']
-]);
-
-/** @constant {Map} formats - Maps ESOVDB video formats to their collection keys in Zotero */
-const formats = new Map([
-	['Documentary Film', 'MV4V7PF9'],
-	['Documentary Series', '4GCM3HVT'],
-	['Web Series', '8TEAT23B'],
-	['Short Film', '9F6QAX8A'],
-	['Lecture Recording', '8TRG9SUC'],
-	['Multiple Lecture Recording', '5KQ8MNNK'],
-	['Lecture & Panel Discussion Recording', 'TVNS7XSN'],
-	['Webinar', 'ZYD659LC'],
-	['Course', 'YEZKPWJ5'],
-	['Debate', '6PXVK5V9'],
-	['Interview', '7NG49SMQ'],
-	['Field Trip', '82GGF7RY'],
-	['Vlog', '6Y9DPY9L'],
-	['Podcast', 'KRTG2Y7W']
-]);
-
-
 /** @constant {number} zoteroRateLimit - Time in seconds to wait between requests to the Zotero API to avoid rate-limiting */
 const zoteroRateLimit = 10;
+
+/** @constant {Map} tables - Maps request 'kind' params to their proper table names on the ESOVDB */
+const tables = new Map([
+  ['videos', { name: 'Videos', type: 'item', singular: 'video' }],
+  ['series', { name: 'Series', type: 'collection', singular: 'series' }],
+  ['topics', { name: 'Topics', type: 'collection', singular: 'topic' }],
+  ['tags', { name: 'Tags', type: 'collection', singular: 'tag' }],
+  ['organizations', { name: 'Organizations', type: null, singular: 'organization' }],
+  ['people', { name: 'People', type: null, singular: 'person' }],
+  ['submissions', { name: 'Submissions', type: null, singular: 'submission' }],
+  ['issues', { name: 'Issues', type: null, singular: 'issue' }]
+]);
 
 /**
  *  Updates specified fields for given items in a specified ESOVDB table via {@link esovdb.processUpdates} and then returns the result for logging
@@ -191,32 +155,33 @@ const postItems = async (path, items) => {
  *  @async
  *  @function deleteItems
  *  @requires axios
- *  @param {string[]} items - An array of one or more Zotero Key strings
+ *  @param {string[]} data - An array of one or more Zotero Key strings representing Zotero items or collections of any kind
+ *  @param {Object} kind - Object containing the type and name of the kind of content it represents, along with special 'string', 'event', sg' and 'pl' getters for stringifying the kind object into different forms
+ *  @param {!express:Response} [res=null] - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
  *  @returns {Object} An object containing two arrays of Zotero Key strings, one for successful deletions, and one for failures, and a total number of successes. 
  *  @sideEffects Triggers webhook events 'videos.delete' or 'series.delete', depending on the parameter {@link kind}
  *  @see [Zotero Web API 3.0 › Write Requests › Creating Multiple Objects]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#creating_multiple_objects}
  */
 
-const deleteItems = async (items, kind, res = false) => {
-  let i = 0, deleted = [], queue = items.length;
+const deleteItems = async (data, kind, res = false) => {
+  let i = 0, deleted = [], queue = data.length;
   
-  while (items.length) {
-    console.log(`Deleting ${items.length === 1 ? kind.substr(0, kind.length - 1) : kind} ${i * 50 + 1}${items.length > 1 ? '-' : ''}${items.length > 1 ? i * 50 + (items.length < 50 ? items.length : 50) : ''} of ${queue} total from Zotero...`);
-    const response = await zoteroLibrary.delete(kind, { params: { [`${kind.substr(0, kind.length - 1)}Key`]: items.splice(0, 50).map((item) => item.zoteroKey).join(',') } });
+  while (data.length) {
+    console.log(`Deleting ${data.length === 1 ? kind.sg : kind.pl} ${i * 50 + 1}${data.length > 1 ? '-' : ''}${data.length > 1 ? i * 50 + (data.length < 50 ? data.length : 50) : ''} of ${queue} total from Zotero...`);
+    const response = await zoteroLibrary.delete(kind.pl, { params: { [`${kind.sg}Key`]: data.splice(0, 50).map((item) => item.zoteroKey).join(',') } });
     if (response.status === 204) deleted = [ ...deleted, true ];
-    if (items.length > 50) await sleep(zoteroRateLimit);
+    if (data.length > 50) await sleep(zoteroRateLimit);
     i++;
   }
   
-  if (kind === 'items') webhooks.subscriptions.trigger('videos.delete', { data: items });
-  else if (kind === 'collections') webhooks.subscriptions.trigger('series.delete', { data: items });
+  webhooks.subscriptions.trigger(kind.event, { data });
  
   if (!deleted.some((response) => !response) && res) {
-    console.log(`› Successfully deleted ${queue} item${queue === 1 ? '' : 's'}.`);
+    console.log(`› Successfully deleted ${queue} ${queue === 1 ? kind.sg : kind.pl}.`);
     return res.status(200).send(deleted);
   } else {
-    if (res) res.status(404).send(`Unable to sync ${queue} deleted item${queue === 1 ? '' : 's'} with Zotero.`);
-    throw new Error(`[ERROR] Unable to sync ${queue} deleted item${queue === 1 ? '' : 's'} with Zotero.`);
+    if (res) res.status(404).send(`Unable to sync ${queue} deleted ${queue === 1 ? kind.sg : kind.pl} with Zotero.`);
+    throw new Error(`[ERROR] Unable to sync ${queue} deleted ${queue === 1 ? kind.sg : kind.pl} with Zotero.`);
   }
 };
 
@@ -238,7 +203,7 @@ const deleteItems = async (items, kind, res = false) => {
  *  @see [Zotero Web API 3.0 › Write Requests › Item Requests]{@link https://www.zotero.org/support/dev/web_api/v3/write_requests#item_requests}
  */
 
-const formatItems = async (video, template) => {
+const formatItems = async (video, template, op) => {
   let extras = [];
   video.presenters = packageAuthors(video.presentersFirstName, video.presentersLastName);
   if (video.topic) extras.push({ title: 'Topic', value: video.topic });
@@ -286,7 +251,7 @@ const formatItems = async (video, template) => {
     libraryCatalog: '',
     callNumber: video.esovdbId || '',
     rights: '',
-    extra: extras.map((item) => item.title + ': ' + item.value).join('\n'),
+    extra: extras.map((item) => `${item.title}: ${item.value}`).join('\n'),
     tags: video.tags ? video.tags.map((tag) => ({ tag })) : [],
     collections: [],
     relations: {},
@@ -300,9 +265,75 @@ const formatItems = async (video, template) => {
   if (video.topic) payload.collections.push(topics.get(video.topic));
   if (video.format) payload.collections.push(formats.get(video.format));
   
+  if (video.tagsJSON) {
+    const tagsJSON = JSON.parse(video.tagsJSON);
+    const newTags = [], extantTags = [];
+
+    for (const tag of tagsJSON) {
+      if (!tagCategories.get(tag.category)) { console.error(`[ERROR] Tag category "${tag.category}", attributed to tag "${tag.name}" does not exist.`); continue; }
+      if (tag.zoteroKey && tag.categoryKey) payload.collections.push(tag.zoteroKey, tag.categoryKey, tagCategories.get(tag.category).sectionKey), extantTags.push(tag);
+      else newTags.push(tag);
+    }
+    
+    if (newTags.length) {
+      try {
+        let i = 0,
+          totalSuccessful = 0,
+          totalUnchanged = 0,
+          totalFailed = 0,
+          posted = [],
+          queue = collections.length,
+          tagsToPost = newTags.map((tag) => ({ name: tag.name, parentCollection: tagCategories.get(tag.category).zoteroKey }));
+        
+        while (tagsToPost.length) {
+          console.log(`Posting tag collection${tagsToPost.length === 1 ? '' : 's'} ${i * 50 + 1}${tagsToPost.length > 1 ? '-' : ''}${tagsToPost.length > 1 ? i * 50 + (tagsToPost.length < 50 ? tagsToPost.length : 50) : ''} of ${queue} total to Zotero...`);
+          let { successful, unchanged, failed } = await postItems('collections', tagsToPost.splice(0, 50));
+          if (successful && successful.length > 0) posted = [ ...posted, ...successful ];
+          totalSuccessful += successful.length;
+          totalUnchanged += unchanged.length;
+          totalFailed += failed.length;
+          if (tagsToPost.length > 50) await sleep(zoteroRateLimit);
+          i++;
+        }
+        
+        console.log('Zotero response summary:');
+        if (totalSuccessful > 0) console.log(`› [${totalSuccessful}] tag collection${totalSuccessful === 1 ? '' : 's'} total added or updated.`);
+        if (totalUnchanged > 0) console.log(`› [${totalUnchanged}] tag collection${totalUnchanged === 1 ? '' : 's'} total left unchanged.`);
+        if (totalFailed > 0) console.log(`› [${totalFailed}] tag collection${totalFailed === 1 ? '' : 's'} total failed to add or update.`);
+
+        if (posted.length > 0) {
+          const tagsToSync = posted.map(({ data: tag }) => ({
+            id: newTags.filter((s) => s.name === tag.name)[0].id,
+            fields: {
+              'Zotero Key': tag.key,
+              'Zotero Version': tag.version,
+              'Category Key': tag.categoryKey
+            }
+          }));
+
+          webhooks.subscriptions.trigger(`tags.${op}`, { data: posted });
+
+          const updated = await updateTable(tagsToSync, 'Tags');
+
+          if (updated && updated.length > 0) {
+            console.log(`› [${updated.length}] collection${updated.length === 1 ? '\'s' : 's\''} Zotero key and version synced with the ESOVDB.`);
+            if (res) res.status(200).send(JSON.stringify(updated));
+          } else {
+            if (res) res.status(404).send('Unable to sync Zotero collection updates with the ESOVDB.');
+            throw new Error('[ERROR] Error syncing collections with the ESOVBD.');
+          }
+        } else {
+          if (res) res.status(404).send('No collections were posted to Zotero.');
+        }
+      } catch (err) {
+        console.error(err.message);
+      }
+    }
+  }
+  
   if (video.series) {
     if (video.zoteroSeries) {
-      payload.collections.push(video.zoteroSeries);
+      payload.collections.push(video.zoteroSeries, seriesSections.get(video.category));
     } else {
       try {
         const { data } = await postItems('collections', [ { name: video.series, parentCollection: parentCollections.get('series') } ]);
@@ -384,17 +415,27 @@ const broadcastItems = async (channel, videos) => {
  *  @async
  *  @function processCollections
  *  @param {(Object|Object[])} series - A single object or array of objects representing records from the ESOVDB series table in Airtable sent through an ESOVDB Airtable automation
- *  @param {('create'|'update)} op - String representation of the current batch operation 
- *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
+ *  @param {('create'|'update)} op - Enumerated string representation of the current batch operation 
+ *  @param {('series'|'tags')} kind - Enumerated string representation of the kind of Zotero object to process
+ *  @param {!express:Response} [res=null] - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
  *  @sideEffects Formats new or updated collections to be compatible with Zotero, posts them to Zotero, triggers webhook events "series.create" or "series.update", depending on the parameter {@link op}
  */
 
-const processCollections = async (series, op, res = null) => {
-  const collections = series.map((collection) => {
-    const payload = {
-      name: collection.name,
-      parentCollection: parentCollections.get('series')
-    };
+const processCollections = async (data, op, kind, res = null) => {
+  const collections = data.map((collection) => {
+    const payload = {};
+    payload.name = collection.name;
+    
+    switch (kind.name) {
+      case 'series':
+        payload.parentCollection = seriesSections.get(collection.category);
+        break;
+      case 'tags':
+        payload.parentCollection = collection.categoryKey;
+        break;
+      default:
+        break;
+    }
     
     if (collection.zoteroKey && collection.zoteroVersion) {
       payload.key = collection.zoteroKey;
@@ -413,7 +454,7 @@ const processCollections = async (series, op, res = null) => {
 
   while (collections.length) {
     console.log(
-      `Posting series collection${collections.length === 1 ? '' : 's'} ${
+      `Posting ${kind} collection${collections.length === 1 ? '' : 's'} ${
         i * 50 + 1
       }${collections.length > 1 ? '-' : ''}${
         collections.length > 1
@@ -435,33 +476,41 @@ const processCollections = async (series, op, res = null) => {
   }
 
   console.log('Zotero response summary:');
-  if (totalSuccessful > 0) console.log(`› [${totalSuccessful}] series collection${totalSuccessful === 1 ? '' : 's'} total added or updated.`);
-  if (totalUnchanged > 0) console.log(`› [${totalUnchanged}] series collection${totalUnchanged === 1 ? '' : 's'} total left unchanged.`);
-  if (totalFailed > 0) console.log(`› [${totalFailed}] series collection${totalFailed === 1 ? '' : 's'} total failed to add or update.`);
+  if (totalSuccessful > 0) console.log(`› [${totalSuccessful}] ${kind.name} collection${totalSuccessful === 1 ? '' : 's'} total added or updated.`);
+  if (totalUnchanged > 0) console.log(`› [${totalUnchanged}] ${kind.name} collection${totalUnchanged === 1 ? '' : 's'} total left unchanged.`);
+  if (totalFailed > 0) console.log(`› [${totalFailed}] ${kind.name} collection${totalFailed === 1 ? '' : 's'} total failed to add or update.`);
   
   if (posted.length > 0) {
-    const collectionsToSync = posted.map(({ data: collection }) => ({
-      id: series.filter((s) => s.name === collection.name)[0].id,
-      fields: {
-        'Zotero Key': collection.key,
-        'Zotero Version': collection.version
-      }
-    }));
+    const collectionsToSync = posted.map(({ data: collection }) => {
+      const record = data.filter((record) => record.name === collection.name)[0];
+      
+      const payload = {
+        id: record.id,
+        fields: {
+          'Zotero Key': collection.key,
+          'Zotero Version': collection.version
+        }
+      };
+      
+      if (kind.name === 'series') payload.fields['Category Key'] = seriesSections.get(record.category);
+      if (kind.name === 'tags') payload.fields['Category Key'] = record.categoryKey;
+      
+      return payload;
+    });
     
-    if (op === 'create') webhooks.subscriptions.trigger('series.create', { data: posted });
-    else if (op === 'update') webhooks.subscriptions.trigger('series.update', { data: posted });
+    webhooks.subscriptions.trigger(`${kind.string}.${op}`, { data: posted });
     
-    const updated = await updateTable(collectionsToSync, 'Series');
+    const updated = await updateTable(collectionsToSync, tables.get(kind.name).name);
 
     if (updated && updated.length > 0) {
-      console.log(`› [${updated.length}] collection${updated.length === 1 ? '\'s' : 's\''} Zotero key and version synced with the ESOVDB.`);
+      console.log(`› [${updated.length}] ${kind.name} collection${updated.length === 1 ? '\'s' : 's\''} Zotero key and version synced with the ESOVDB.`);
       if (res) res.status(200).send(JSON.stringify(updated));
     } else {
-      if (res) res.status(404).send('Unable to sync Zotero collection updates with the ESOVDB.');
-      throw new Error('[ERROR] Error syncing collections with the ESOVBD.');
+      if (res) res.status(404).send(`Unable to sync Zotero ${kind.name} collection updates with the ESOVDB.`);
+      throw new Error(`[ERROR] Error syncing ${kind.name} collections with the ESOVBD.`);
     }
   } else {
-    if (res) res.status(404).send('No collections were posted to Zotero.');
+    if (res) res.status(404).send(`No ${kind.name} collections were posted to Zotero.`);
   }
 }
 
@@ -473,13 +522,13 @@ const processCollections = async (series, op, res = null) => {
  *  @function processItems
  *  @param {(Object|Object[])} videos - A single object or array of objects representing records from the ESOVDB videos table in Airtable, either originally retrieved through this server's esovdb/videos/list endpoint, or sent through an ESOVDB Airtable automation
  *  @param {('create'|'update)} op - String representation of the current batch operation 
- *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
+ *  @param {!express:Response} [res=null] - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
  *  @sideEffects Formats new or updated items to be compatible with Zotero, posts them to Zotero, and then tweets and sends a message on Discord if data represents one or more new items, triggers webhook events "videos.create" or "videos.update", depending on the parameter {@link op}
  */
 
 const processItems = async (videos, op, res = null) => {
   const template = await getTemplate();
-  let items = await queueAsync(videos.map((video) => async () => await formatItems(video, template)));
+  let items = await queueAsync(videos.map((video) => async () => await formatItems(video, template, op)));
 
   let i = 0,
     totalSuccessful = 0,
@@ -553,8 +602,11 @@ let timer;
 /** @constant {Subject} itemsStream - Multicast observable subject that emits on each http PUT request to '/zotero/items' */
 const itemsStream = new Subject();
 
-/** @constant {Subject} collectionsStream - Multicast observable subject that emits on each http PUT request to '/zotero/collections' */
-const collectionsStream = new Subject();
+/** @constant {Subject} seriesCollectionsStream - Multicast observable subject that emits on each http PUT request to '/zotero/collections.series' */
+const seriesCollectionsStream = new Subject();
+
+/** @constant {Subject} tagsCollectionsStream - Multicast observable subject that emits on each http PUT request to '/zotero/collections.tags' */
+const tagsCollectionsStream = new Subject();
 
 /** @constant {Observable} onComplete - Observable which instantly emits its complete notification */
 const onComplete$ = new Observable(subscriber => { subscriber.complete(); });
@@ -589,24 +641,24 @@ const itemsObserver = {
     }
 };
 
-/** @constant {Observer} collectionsObserver - Subscribes to updates {@link stream} that are collections. Observable generated from http PUT requests to '/zotero/collections' */
-const collectionsObserver = {
+/** @constant {Observer} seriesCollectionsObserver - Subscribes to updates {@link stream} that are series collections. Observable generated from http PUT requests to '/zotero/collections.series' */
+const seriesCollectionsObserver = {
     next: async ([ req, res ]) => {
-      const data = await batch.append('collections', 'update', Array.isArray(req.body) ? req.body : Array.of(req.body));
-      console.log(`› Added collection ${data.length} to batch for update.`);
+      const data = await batch.append('collections.series', 'update', Array.isArray(req.body) ? req.body : Array.of(req.body));
+      console.log(`› Added series collection ${data.length} to batch for update.`);
       res.status(202).send(data);
       clearTimeout(timer);
-      timer = setTimeout(() => { onComplete$.subscribe(collectionsObserver); }, batch.interval()); 
+      timer = setTimeout(() => { onComplete$.subscribe(seriesCollectionsObserver); }, batch.interval()); 
     },
     err: (err) => { console.error(err) },
     complete: async () => {
       try {
-        const data = await batch.get('collections', 'update');
-        console.log(`Attempting to batch process ${data ? data.length : '0'} collection${data.length > 1 ? 's' : ''}...`);
+        const data = await batch.get('collections.series', 'update');
+        console.log(`Attempting to batch process ${data ? data.length : '0'} series collection${data.length > 1 ? 's' : ''}...`);
         
         if (data.length) {
-          await processCollections(data, 'update');
-          console.log(`› Successfully batch updated ${data.length} collection${data.length > 1 ? 's' : ''}.`);
+          await processCollections(data, 'update', 'series');
+          console.log(`› Successfully batch updated ${data.length} series collection${data.length > 1 ? 's' : ''}.`);
         } else {
           throw new Error('[ERROR] No data sent for batch processing.');
         }
@@ -614,7 +666,37 @@ const collectionsObserver = {
           console.error(err.message);
         }
       
-      await batch.clear('collections', 'update');
+      await batch.clear('collections.series', 'update');
+      clearTimeout(timer);
+    }
+};
+
+/** @constant {Observer} tagsCollectionsObserver - Subscribes to updates {@link stream} that are tag collections. Observable generated from http PUT requests to '/zotero/collections.tags' */
+const tagsCollectionsObserver = {
+    next: async ([ req, res ]) => {
+      const data = await batch.append('collections.tags', 'update', Array.isArray(req.body) ? req.body : Array.of(req.body));
+      console.log(`› Added tag collection ${data.length} to batch for update.`);
+      res.status(202).send(data);
+      clearTimeout(timer);
+      timer = setTimeout(() => { onComplete$.subscribe(tagsCollectionsObserver); }, batch.interval()); 
+    },
+    err: (err) => { console.error(err) },
+    complete: async () => {
+      try {
+        const data = await batch.get('collections.tags', 'update');
+        console.log(`Attempting to batch process ${data ? data.length : '0'} tag collection${data.length > 1 ? 's' : ''}...`);
+        
+        if (data.length) {
+          await processCollections(data, 'update', 'tags');
+          console.log(`› Successfully batch updated ${data.length} tag collection${data.length > 1 ? 's' : ''}.`);
+        } else {
+          throw new Error('[ERROR] No data sent for batch processing.');
+        }
+        } catch (err) {
+          console.error(err.message);
+        }
+      
+      await batch.clear('collections.tags', 'update');
       clearTimeout(timer);
     }
 };
@@ -622,8 +704,11 @@ const collectionsObserver = {
 /** @constant {Subscription} itemsSubscription - Subscription created from observing {@link itemsStream} with {@link itemsObserver} */
 const itemsSubscription = itemsStream.subscribe(itemsObserver);
 
-/** @constant {Subscription} collectionsSubscription - Subscription created from observing {@link collectionsStream} with {@link collectionsObserver} */
-const collectionsSubscription = collectionsStream.subscribe(collectionsObserver);
+/** @constant {Subscription} seriesCollectionsSubscription - Subscription created from observing {@link seriesCollectionsStream} with {@link seriesCollectionsObserver} */
+const seriesCollectionsSubscription = seriesCollectionsStream.subscribe(seriesCollectionsObserver);
+
+/** @constant {Subscription} tagsCollectionsSubscription - Subscription created from observing {@link tagsCollectionsStream} with {@link tagsCollectionsObserver} */
+const tagsCollectionsSubscription = tagsCollectionsStream.subscribe(tagsCollectionsObserver);
 
 module.exports = {
   
@@ -643,81 +728,111 @@ module.exports = {
   
   sync: async (req, res) => {
     try {
-      const kind = req.params.kind;
       const op = getOp(req);
       const records = Array.isArray(req.body) ? req.body : Array.of(req.body);
+      const kind = req.params.kind
+        ? req.params.kind.indexOf('.') > 0
+          ? { type: 'collections', name: req.params.kind.split('.')[1], table: req.params.kind.split('.')[1] }
+          : { type: req.params.kind, name: '', table: 'videos' }
+        : { type: '', name: '', table: '' };
+      
+      Object.defineProperties(kind, {
+        string: { get: () => kind.name ? `${kind.type}.${kind.name}` : kind.type, configurable: false },
+        event: { get: () => kind.table ? `${kind.table}.${op}`: '', configurable: false },
+        sg: { get: () => kind.type.substr(0, kind.type.length - 1), configurable: false },
+        pl: { get: () => kind.type, configurable: false }
+      });
       
       switch (op) {
         case 'create':
           if (records[0].batch && records[0].batchSize > 1) {
             let data = [];
-            await batch.size(kind, op) === 0 && console.log(`Processing batch create request of ${records[0].batchSize} ${kind}...`);
-            data = await batch.append(op, kind, records);
-            console.log(`› Added ${kind.substr(0, kind.length - 1)} ${data.length} of ${records[0].batchSize} to batch for creation.`);
+            await batch.size(kind.string, op) === 0 && console.log(`Processing batch create request of ${records[0].batchSize} ${kind.pl}...`);
+            data = await batch.append(kind.string, op, records);
+            console.log(`› Added ${kind.sg} ${data.length} of ${records[0].batchSize} to batch for creation.`);
             
-            if (await batch.size(kind, op) >= records[0].batchSize) {
-              await batch.clear(kind, op);
-              switch (kind) {
+            if (await batch.size(kind.string, op) >= records[0].batchSize) {
+              await batch.clear(kind.string, op);
+              
+              switch (kind.string) {
                 case 'items':
                   await processItems(data.sort(sortDates), op, res);
                   break;
-                case 'collections':
-                  await processCollections(data, op, res);
+                case 'collections.series':
+                case 'collections.tags':
+                  await processCollections(data, op, kind, res);
                   break;
                 default:
-                  return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
+                  return res.status(400).send(`[ERROR] Unrecognized request "${kind.string}/${op}".`);
               }
-              console.log(`› Successfully batch created ${records[0].batchSize} ${kind}.`);
+              
+              console.log(`› Successfully batch created ${records[0].batchSize} ${kind.pl}.`);
             } else {
               return res.status(202).send(data);
             }
           } else {
-            console.log(`Processing single create ${kind.substr(0, kind.length - 1)} request...`);
-            switch (kind) {
+            console.log(`Processing single create ${kind.sg} request...`);
+            
+            switch (kind.string) {
               case 'items':
                 await processItems(records, op, res);
                 break;
-              case 'collections':
-                await processCollections(records, op, res);
+              case 'collections.series':
+              case 'collections.tags':
+                await processCollections(records, op, kind, res);
                 break;
               default:
-                return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
+                return res.status(400).send(`[ERROR] Unrecognized request "${kind.string}/${op}".`);
             }
-            console.log(`› Successfully created the new ${kind.substr(0, kind.length - 1)}.`);
+            
+            console.log(`› Successfully created the new ${kind.sg}.`);
           }
+          
           break;
         case 'update':
-          console.log(`Processing update ${kind} request (length unknown)...`);
-          switch (kind) {
+          console.log(`Processing update ${kind.pl} request (length unknown)...`);
+          
+          switch (kind.string) {
             case 'items':
               itemsStream.next([ req, res ]);
               break;
-            case 'collections':
-              collectionsStream.next([ req, res ]);
+            case 'collections.series':
+              seriesCollectionsStream.next([ req, res ]);
               break;
-            case 'collections-count':
+            case 'collections.tags':
+              tagsCollectionsStream.next([ req, res ]);
+              break;
+            case 'collections.series-count':
               await processItems(records, op, res);
               break;
+            case 'collections.series-name':
+              await processCollections([{ batch: false, batchSize: 0, kind: 'collections', id: '', name: records[0].series, category: records[0].seriesType, zoteroKey: records[0].zoteroSeries, zoteroVersion: records[0].seriesVersion }], kind, op);
+              await processItems(records, op, res);
+              break;
+            case 'collections.series-type':
+              await processCollections(records, kind, op, res);
+              break;
             default:
-              return res.status(400).send(`[ERROR] Unrecognized kind, "${kind}".`);
+              return res.status(400).send(`[ERROR] Unrecognized request "${kind.string}/${op}".`);
           }
+          
           break;
         case 'delete':
           if (records[0].batch && records[0].batchSize > 50) {
             let data = [];
-            await batch.size(kind, op) === 0 && console.log(`Processing batch delete request of ${records[0].batchSize} ${kind}...`);
-            data = await batch.append(op, kind, records);
-            console.log(`› Added ${kind.substr(0, kind.length - 1)} ${data.length} of ${records[0].batchSize} to batch for deletion.`);
+            await batch.size(kind.string, op) === 0 && console.log(`Processing batch delete request of ${records[0].batchSize} ${kind.pl}...`);
+            data = await batch.append(kind.string, op, records);
+            console.log(`› Added ${kind.sg} ${data.length} of ${records[0].batchSize} to batch for deletion.`);
             
-            if (await batch.size(kind, op) >= records[0].batchSize) {
-              await batch.clear(kind, op);
+            if (await batch.size(kind.string, op) >= records[0].batchSize) {
+              await batch.clear(kind.string, op);
               await deleteItems(data, kind, res);
-              console.log(`› Successfully batch deleted ${records[0].batchSize} ${kind}.`);
+              console.log(`› Successfully batch deleted ${records[0].batchSize} ${kind.pl}.`);
             } else {
               return res.status(202).send(data);
             }
           } else {
-            console.log(`Processing delete request for ${records.length} ${kind.substr(0, kind.length - 1)}${records.length === 1 ? '' : 's'}...`);
+            console.log(`Processing delete request for ${records.length} ${records.length === 1 ? kind.sg : kind.pl}...`);
             await deleteItems(records, kind, res);
           }
           break;

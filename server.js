@@ -1,7 +1,7 @@
 /**
  *  @file Express server with IP validation middleware and graceful cleanup
- *  @author Avana Vana <dear.avana@gmail.com>
- *  @version 1.7.0
+ *  @author Avana Vana <avana@esovdb.org>
+ *  @version 4.0.0
  */
 
 const dotenv = require('dotenv').config();
@@ -13,6 +13,7 @@ const { appReady, patternsToRegEx } = require('./util');
 const cron = require('./cron');
 const esovdb = require('./esovdb');
 const webhooks = require('./webhooks');
+const youtube = require('./youtube');
 const zotero = require('./zotero');
 
 const app = express();
@@ -95,7 +96,7 @@ app.get('/v1/videos/youtube/:id?', [ middleware.validateReq, middleware.allowCOR
 });
 
 /**
- *  API endpoint for selecting a single video ESOVDB, by its ESOVDB ID, returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
+ *  API endpoint for selecting a single video ESOVDB, by its ESOVDB Airtable ID, returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
  *  @requires esovdb
  *  @callback esovdb.getVideoById
  */
@@ -190,6 +191,39 @@ app.route('/webhooks')
     console.log(`Performing webhooks/delete API request...`);
     webhooks.manage(req, res);
   });
+
+/**
+ *  API endpoint for submitting a YouTube channel's videos to the ESOVDB
+ *  @requires youtube
+ *  @callback - youtube.getChannelVideos
+ */
+
+app.post('/submissions/youtube/channel', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  console.log(`Performing submissions/youtube channel API request...`);
+  youtube.getChannelVideos(req, res);
+});
+
+/**
+ *  API endpoint for submitting a YouTube playlist's videos to the ESOVDB
+ *  @requires youtube
+ *  @callback - youtube.getPlaylistVideos
+ */
+
+app.post('/submissions/youtube/playlist', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  console.log(`Performing submissions/youtube playlist API request...`);
+  youtube.getPlaylistVideos(req, res);
+});
+
+/**
+ *  API endpoint for submitting a single YouTube video to the ESOVDB (e.g. via "Is Video on ESOVDB?" iOS shorcut)
+ *  @requires esovdb
+ *  @callback - esovdb.newVideoSubmission
+ */
+
+app.post('/submissions/youtube/video/:id', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  console.log(`Performing submissions/youtube single video API request...`);
+  esovdb.newVideoSubmission(req, res);
+});
 
 /**
  *  API endpoint which is the end of all other endpoints
