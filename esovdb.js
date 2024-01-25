@@ -18,14 +18,14 @@ const base = new Airtable({
 
 /** @constant {Map} tables - Maps request table params to their proper names on the ESOVDB */
 const tables = new Map([
-  ['videos', 'Videos'],
-  ['series', 'Series'],
-  ['topics', 'Topics'],
-  ['tags', 'Tags'],
-  ['organizations', 'Organizations'],
-  ['people', 'People'],
-  ['submissions', 'Submissions'],
-  ['issues', 'Issues']
+  [ 'videos', 'Videos' ],
+  [ 'series', 'Series' ],
+  [ 'topics', 'Topics' ],
+  [ 'tags', 'Tags' ],
+  [ 'organizations', 'Organizations' ],
+  [ 'people', 'People' ],
+  [ 'submissions', 'Submissions' ],
+  [ 'issues', 'Issues ']
 ]);
 
 /** @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
@@ -41,9 +41,9 @@ const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 
 /** @constant {Map} formatFields - Maps each format, as passed in the URL query params to a list of fields that Airtable should retrieve, for that format. */
 const formatFields = new Map([
-  ['zotero', [ 'Zotero Key', 'Zotero Version', 'Series Zotero Key', 'Title', 'URL', 'Year', 'Description', 'Running Time', 'Format', 'Topic', 'Tags', 'Learn More', 'Series Text', 'Series Count Text', 'Vol.', 'No.', 'Publisher Text', 'Presenter First Name', 'Presenter Last Name', 'Language Code', 'Location', 'Plus Code', 'Video Provider', 'ESOVDBID', 'Record ID', 'ISO Added', 'Created', 'Modified' ]],
-  ['yt', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]],
-  ['youtube', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]]
+  [ 'zotero', [ 'Zotero Key', 'Zotero Version', 'Series Zotero Key', 'Title', 'URL', 'Year', 'Description', 'Running Time', 'Format', 'Topic', 'Tags', 'Learn More', 'Series Text', 'Series Count Text', 'Vol.', 'No.', 'Publisher Text', 'Presenter First Name', 'Presenter Last Name', 'Language Code', 'Location', 'Plus Code', 'Video Provider', 'ESOVDBID', 'Record ID', 'ISO Added', 'Created', 'Modified' ]],
+  [ 'yt', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]],
+  [ 'youtube', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]]
 ]);
 
 /** @constant {Object} videoFormat - A collection of formatting methods that can be used to transform ESOVDB Airtable output into different formats */
@@ -113,31 +113,31 @@ const videoFormat = {
   
    toJSON: (record) => ({ id: record.id, ...record._rawJson.fields }),
   
-    /**
-     *  @method toCSV 
-     *  @todo Will eventually format an Airtable record class instance as a line in a CSV file to be included in a larger CSV response, i.e. with each field's value in order, separated by commas, and surrounded by double quotes, if the field's value contains a comma
-     */
+  /**
+   *  @method toCSV 
+   *  @todo Will eventually format an Airtable record class instance as a line in a CSV file to be included in a larger CSV response, i.e. with each field's value in order, separated by commas, and surrounded by double quotes, if the field's value contains a comma
+   */
   
 //  toCSV: (record) => {},
   
-     /**
-      *  @method toXML
-      *  @todo Will eventually format an Airtable record class instance as an XML object to be included in a larger XML response
-      */
+ /**
+  *  @method toXML
+  *  @todo Will eventually format an Airtable record class instance as an XML object to be included in a larger XML response
+  */
   
 //   toXML: (video) => {},
   
-     /**
-      *  @method toKML
-      *  @todo Will eventually format an Airtable record class instance as an Google Earth KML object to be included in a larger Google Earth KML response, if the Airtable record has location data, such that the response can be imported into and plotted with Google Earth
-      */
+ /**
+  *  @method toKML
+  *  @todo Will eventually format an Airtable record class instance as an Google Earth KML object to be included in a larger Google Earth KML response, if the Airtable record has location data, such that the response can be imported into and plotted with Google Earth
+  */
   
 //   toKML: (video) => {},
   
-     /**
-      *  @method toGeoJSON
-      *  @todo Will eventually format an Airtable record class instance as an GeoJSON Object, if the Airtable record has location data, such that the response can be used with GIS software
-      */
+ /**
+  *  @method toGeoJSON
+  *  @todo Will eventually format an Airtable record class instance as an GeoJSON Object, if the Airtable record has location data, such that the response can be used with GIS software
+  */
   
 //   toGeoJSON: (video) => {}
 }
@@ -366,8 +366,8 @@ module.exports = {
           .select(options)
           .eachPage(
             function page(records, fetchNextPage) {
-                data = [ ...data, ...records.map((record) => getFormat(req.query.format, videoFormat.toYTJSON)(record)) ];
-                fetchNextPage();
+              data = [ ...data, ...records.map((record) => getFormat(req.query.format, videoFormat.toYTJSON)(record)) ];
+              fetchNextPage();
             },
             function done(err) {
               if (err) {
@@ -561,8 +561,7 @@ module.exports = {
   newVideoSubmission: async (req, res) => {
     try {
       if (!regexYTVideoId.test(req.params.id)) return res.status(400).send('Invalid YouTube Video ID.');
-      const video = await getVideo(req.params.id);
-      
+      const video = await getVideo(req.params.id);  
       const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
       
       rateLimiter.wrap(
@@ -571,8 +570,11 @@ module.exports = {
           'URL': `https://youtu.be/${video.id}`,
           'Description': video.description || '',
           'Year': +video.year || null,
+          'Date': video.date || null,
           'Running Time': +video.duration || null,
           'Medium': 'Online Video',
+          'YouTube Channel Title': video.channel || '',
+          'YouTube Channel ID': video.channelId || '',
           'Submission Source': 'Is YouTube Video on ESOVDB?',
           'Submitted by': ip || ''
         }, function(err, record) {

@@ -107,7 +107,7 @@ const actions = new Map([
    *  // returns { added: [ 'videos.delete' ], unchanged: [ 'videos.update' ], failed: [ 'series.create' ] }
    */
 
-  ['create', async (events, callbackUrl) => {
+  [ 'create', async (events, callbackUrl) => {
     let added = [], unchanged = [], failed = [];
 
     for await (let e of events) {
@@ -140,7 +140,7 @@ const actions = new Map([
    *  // returns { added: [ 'videos.delete' ], removed: [ 'videos.update', 'series.create' ], unchanged: [ 'videos.create' ], failed: [] }
    */
 
-  ['update', async (events, callbackUrl) => {
+  [ 'update', async (events, callbackUrl) => {
     let added = [], removed = [], unchanged = [], failed = [];
 
     const eventsToRemove = Object.keys(webhooksDb()).filter((k) => !events.includes(k)).map((e) => ({ name: e, callbackUrls: webhooksDb()[e] })).filter((i) => i.callbackUrls.includes(callbackUrl)).map((i) => i.name);
@@ -183,7 +183,7 @@ const actions = new Map([
    *  // returns { removed: [ 'videos.delete' ], unchanged: [], failed: [ 'series.create' ] }
    */
   
-  ['delete', async (events, callbackUrl) => {
+  [ 'delete', async (events, callbackUrl) => {
     let removed = [], unchanged = [], failed = [];
 
     for await (let e of events) {
@@ -235,6 +235,7 @@ const itemToDiscord = (text, item) => {
       }
     ]
   };
+  
   if (item.abstractNote) draft.embeds[0].description = truncate(item.abstractNote, 200);
   if (regexYT.test(item.url)) draft.embeds[0].image = { 'url': `http://i3.ytimg.com/vi/${item.url.match(regexYT)[1]}/hqdefault.jpg` };
   if (stringifyCreators(item.creators) !== 'Unknown') draft.embeds[0].fields.push({ 'name': 'Presenter(s)', 'value': stringifyCreators(item.creators) });

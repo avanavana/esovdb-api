@@ -71,8 +71,8 @@ const middleware = {
  *  @callback esovdb.getLatest
  */
 
-app.get('/v1/videos', [ middleware.auth, middleware.validateReq ], async (req, res) => {
-  await esovdb.getLatest(req, res);
+app.get('/v1/videos', [ middleware.auth, middleware.validateReq ], (req, res) => {
+  esovdb.getLatest(req, res);
 });
 
 /**
@@ -101,8 +101,8 @@ app.get('/v1/videos/youtube/:id?', [ middleware.validateReq, middleware.allowCOR
  *  @callback esovdb.getVideoById
  */
 
-app.get('/v1/videos/:id', [ middleware.auth, middleware.validateReq ], async (req, res) => {
-  await esovdb.getVideoById(req, res);
+app.get('/v1/videos/:id', [ middleware.auth, middleware.validateReq ], (req, res) => {
+  esovdb.getVideoById(req, res);
 });
 
 /**
@@ -150,7 +150,7 @@ app.post('/webhooks/discord', [ middleware.auth, middleware.validateReq, express
 });
 
 /**
- *  Combined API endpoints for handling new submissions sent to the ESOVDB Twitter account, @esovdb with a hashtag of #submit, as well as Twitter's webhook verification
+ *  Combined API endpoints sfor handling new submissions sent to the ESOVDB Twitter account, @esovdb with a hashtag of #submit, as well as Twitter's webhook verification
  *  @requires webhooks
  *  @callback webhooks.execute
  */
@@ -163,7 +163,7 @@ app.route('/webhooks/twitter')
     if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Twitter webhook event.')
     res.status(200).send(response.config.data)
   })
-  .get(async (req, res) => {
+  .get((req, res) => {
     res.status(200).send('OK (Placeholder)');
   });
 
@@ -243,9 +243,9 @@ app.get('/*', (req, res) => {
  *  @callback - Logs the start of the server session and port on which the server is listen.
  */
 
-const listener = app.listen(3000, '0.0.0.0', async () => {
+const listener = app.listen(3000, '0.0.0.0', () => {
   monitor.ping({ state: 'ok', message: 'API server listen on port 3000.' });
-  await db.connect();
+  db.connect();
   cron.startJobs([ cron.getLatest ]);
   console.log('API proxy listen on port ' + listener.address().port);
 });
@@ -262,8 +262,8 @@ appReady(() => { monitor.ping({ state: 'run', message: 'API Server (re)started.'
  *  @requires node-cleanup
  */
 
-cleanUp(async (code, signal) => {
-  await db.quit();
+cleanUp((code, signal) => {
+  db.quit();
   cron.destroyJobs();
   monitor.ping({ status: 'complete', message: 'API server shut down.' })
 });

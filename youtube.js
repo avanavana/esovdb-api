@@ -14,7 +14,7 @@ const youtube = axios.create({ baseURL: 'https://youtube.googleapis.com/youtube/
 const regexYTChannel = /^(?:https?:\/\/(?:www\.)?youtube\.com\/channel\/)?(UC[\w-]{21}[AQgw])(?:\/|\/videos)?$/;
 const regexYTPlaylist = /(?!.*\?.*\bv=)(?!rec)(?:youtu\.be\/|youtube\.com\/(?:playlist|list|embed|watch)(?:\.php)?(?:\?.*list=|\/)|)([\w\-]{12,})/;
 
-const getChannelResultsPage = async (channelId, length = null, nextPageToken = null) => {
+const getChannelResultsPage = async (channelId, length = 'any', publishedAfter = null, nextPageToken = null) => {
   try {
     const params = new URLSearchParams({
       part: 'snippet,id',
@@ -22,10 +22,11 @@ const getChannelResultsPage = async (channelId, length = null, nextPageToken = n
       maxResults: 50,
       order: 'date',
       type: 'video',
-      videoDuration: length ? length : 'any',
+      videoDuration: length,
       key: process.env.YOUTUBE_API_KEY
     });
 
+    if (publishedAfter) params.set('publishedAfter', publishedAfter);
     if (nextPageToken) params.set('pageToken', nextPageToken);
     const { data } = await youtube.get(`search${'?' + params.toString()}`);
     if (!data) throw new Error(`Couldn't connect to YouTube for search request.`);
@@ -93,7 +94,9 @@ const appendChannelResultPage = (list, page) => [
     title: video.snippet.title,
     description: video.snippet.description,
     channel: video.snippet.channelTitle,
-    year: video.snippet.publishedAt.substr(0, 4)
+    channelId: video.snippet.channelId,
+    year: video.snippet.publishedAt.substr(0, 4),
+    date: video.snippet.publishedAt
 }))];
 
 const appendPlaylistItemsResultPage = (list, page, playlistTitle) => [
@@ -104,8 +107,10 @@ const appendPlaylistItemsResultPage = (list, page, playlistTitle) => [
     description: video.snippet.description,
     playlist: playlistTitle,
     channel: video.snippet.channelTitle,
+    channelId: video.snippet.channelId,
     position: video.snippet.position,
-    year: video.snippet.publishedAt.substr(0, 4)
+    year: video.snippet.publishedAt.substr(0, 4),
+    date: video.snippet.publishedAt
 }))];
 
 const appendDetailsResultPage = (list, page) => [
@@ -122,16 +127,18 @@ const appendVideoDetails = (list, page) => [
     title: video.snippet.title,
     description: video.snippet.description,
     channel: video.snippet.channelTitle,
+    channelId: video.snippet.channelId,
     year: video.snippet.publishedAt.substr(0, 4),
+    date: video.snippet.publishedAt,
     duration: formatYTDuration(video.contentDetails.duration)
 }))];
 
 module.exports = {
   getChannelVideos: async (req, res) => {
     if (!req.body.channel) return res.status(400).send('Channel ID or URL required.');
-    let i = 2, j = 2, videos = [], channelId = regexYTChannel.exec(req.body.channel)[1];
+    let i = 2, videos = [], channelId = regexYTChannel.exec(req.body.channel)[1];
     console.log(`Retrieving video IDs from channel "${channelId}"...`);
-    let result = await getChannelResultsPage(channelId, req.body.length ? req.body.length : null);
+    let result = await getChannelResultsPage(channelId, req.body.length || 'any', req.body.publishedAfter);
     if (result.error) return res.status(400).send(JSON.stringify(result.error));
     const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
     videos = appendChannelResultPage(videos, result);
@@ -139,7 +146,7 @@ module.exports = {
     while (i <= pages) {
       console.log(`Retrieving video data from page ${i} of ${pages})...`);
       i++, await sleep(0.2);
-      result = await getChannelResultsPage(channelId, req.body.length ? req.body.length : null, result.data.nextPageToken);
+      result = await getChannelResultsPage(channelId, req.body.length || 'any', req.body.publishedAfter, result.data.nextPageToken);
       if (result.error) return res.status(400).send(JSON.stringify(result.error));
       videos = appendChannelResultPage(videos, result);
     }
@@ -164,7 +171,7 @@ module.exports = {
   
   getPlaylistVideos: async (req, res) => {
     if (!req.body.playlist) return res.status(400).send('Playlist ID or URL required.');
-    let i = 2, j = 2, videos = [], playlistId = regexYTPlaylist.exec(req.body.playlist)[1];
+    let i = 2, videos = [], playlistId = regexYTPlaylist.exec(req.body.playlist)[1];
     console.log(`Retrieving metadata from playlist "${playlistId}"...`);
     let playlistData = await getPlaylistResultsPage(playlistId);
     const playlistTitle = playlistData ? playlistData.snippet.title : playlistId;
