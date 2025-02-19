@@ -193,17 +193,14 @@ module.exports = {
     if (!req.query) req.query = {};
     req.params.pg = !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 ? null : +req.params.pg - 1;
     
-    if (!req.query.pageSize || !Number(req.query.pageSize || req.query.pageSize > 100)) {
+    if (!req.query.pageSize || !Number(req.query.pageSize || req.query.pageSize > 100))
       req.query.pageSize = 100;
-    }
     
-    if (!Number(req.query.maxRecords || req.query.maxRecords == 0)) {
+    if (!Number(req.query.maxRecords || req.query.maxRecords == 0))
       req.query.maxRecords = null;
-    }
     
-    if (req.query.maxRecords && +req.query.maxRecords < +req.query.pageSize) {
+    if (req.query.maxRecords && +req.query.maxRecords < +req.query.pageSize)
       req.query.pageSize = req.query.maxRecords;
-    }
     
     let modifiedAfter,
         modifiedAfterDate,
@@ -231,9 +228,9 @@ module.exports = {
     
     if (req.query.youTube && regexYT.test(decodeURIComponent(req.query.youTube))) likeYTID = regexYT.exec(decodeURIComponent(req.query.youTube))[1];
     
-    let queryText = req.params.pg !== null
-      ? `for page ${req.params.pg + 1} (${req.query.pageSize} results per page)`
-      : `(${req.query.pageSize} results per page, ${req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all'} results)`;
+    let queryText = req.params.pg !== null ?
+      `for page ${req.params.pg + 1} (${req.query.pageSize} results per page)` :
+      `(${req.query.pageSize} results per page, ${req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all'} results)`;
     
     queryText += modifiedAfterDate ? ', modified after ' + modifiedAfterDate.toLocaleString() : '';
     queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
@@ -261,12 +258,23 @@ module.exports = {
             sort: [{ field: 'Modified', direction: 'desc' }]
           };
       
-      if (formatFields.get(req.query.format)) options.fields = formatFields.get(req.query.format);
-      if (req.query.maxRecords && !req.params.pg) options.maxRecords = +req.query.maxRecords;
-      if (modifiedAfter) filterStrings.push(`IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`);
-      if (createdAfter) filterStrings.push(`IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`);
-      if (likeYTID) filterStrings.push(`REGEX_MATCH({URL}, "${likeYTID}")`);
-      if (filterStrings.length > 0) options.filterByFormula = `AND(${filterStrings.join(',')})`;
+      if (formatFields.get(req.query.format))
+        options.fields = formatFields.get(req.query.format);
+      
+      if (req.query.maxRecords && !req.params.pg)
+        options.maxRecords = +req.query.maxRecords;
+      
+      if (modifiedAfter)
+        filterStrings.push(`IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`);
+      
+      if (createdAfter)
+        filterStrings.push(`IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`);
+      
+      if (likeYTID)
+        filterStrings.push(`REGEX_MATCH({URL}, "${likeYTID}")`);
+      
+      if (filterStrings.length > 0)
+        options.filterByFormula = `AND(${filterStrings.join(',')})`;
 
       rateLimiter.wrap(
         base('Videos')
@@ -309,7 +317,7 @@ module.exports = {
   },
   
   /**
-   *  Retrieves a list of ESOVDB videos that are on YouTube by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query for 100 videos, sorted by oldest first, using Bottleneck for rate-limiting.  
+   *  Retrieves a video from the ESOVDB, searching the 'Videos' table, given a YouTube video URL or ID, and returns a match's ESOVDB details in JSON format.
    *
    *  @method queryYouTubeVideos
    *  @requires Airtable
@@ -323,7 +331,7 @@ module.exports = {
    *  @returns {Object} Object with collection or properties for identifying and linking to an ESOVDB record on YouTube
    */
   
-  queryYouTubeVideos: (req, res) => {    
+  queryYouTubeVideos: (req, res) => {
     let videoId;
     
     if (req.params.id && regexYT.test(decodeURIComponent(req.params.id))) {
@@ -390,6 +398,25 @@ module.exports = {
       
       if (!res && data.length > 0) return data[0];
     }
+  },
+  
+  /**
+   *  Retrieves a video from the ESOVDB, searching the 'Videos' table first, then the 'Submissions' table, given a YouTube video URL or ID, and returns a match's ESOVDB details in JSON format.
+   *
+   *  @method queryYouTubeVideosAndSubmissions
+   *  @requires Airtable
+   *  @requires Bottleneck
+   *  @requires cache
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {string} [req.params.id] - URL parameter representing a YouTube video's URL, short URL, or video ID, passed last, as a required URL parameter.  Either this or req.query.id is required.
+   *  @param {string} [req.query.id] - URL query parameter representing a YouTube video's URL, short URL, or video ID, passed last, as a required URL parameter. Either this or req.params.id is required.
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
+   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript Object
+   *  @returns {Object} Object with collection or properties for identifying and linking to an ESOVDB record on YouTube
+   */
+  
+  queryYouTubeVideosAndSubmissions: (req, res) => {
+    
   },
   
   /**

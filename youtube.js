@@ -134,6 +134,27 @@ const appendVideoDetails = (list, page) => [
 }))];
 
 module.exports = {
+  /**
+   *  Watches a YouTube channel for new video uploads to add to the ESOVDB
+   *
+   *  @method watchYouTubeChannel
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {string} req.body.channel - The channel ID of the YouTube channel that should be watched
+   *  @sideEffects Starts a [ScheduledTask]{@link cron.ScheduledTask} cron jobs using the [node-cron]{@link cron} library and adds a YouTube channel to a watch list if it does not already exist
+   */
+  watchYouTubeChannel: (req) => {
+    const cachePath = `.cache${req.url}.json`;
+    const cachedResult = cache.readCacheWithPath(cachePath);
+    
+    let watchList;
+    
+    if (cachedResult !== null) {
+      console.log(`Cache hit. Returning cached result for ${req.url}...`);
+      watchList = cachedResult;
+    } else {
+      console.log(`Cache miss. Loading from Airtable for ${req.url}...`);
+    }
+  },
   getChannelVideos: async (req, res) => {
     if (!req.body.channel) return res.status(400).send('Channel ID or URL required.');
     let i = 2, videos = [], channelId = regexYTChannel.exec(req.body.channel)[1];

@@ -45,11 +45,11 @@ module.exports = {
   /**
    *  Clears each job one by one from whichever node on which it is running
    *
-   *  @method destroyJobs
+   *  @method stopJobs
    *  @sideEffects Clears all running [ScheduledTask]{@link cron.ScheduledTask} cron jobs from every node, using the [node-cron]{@link cron} library
    */
   
-  destroyJobs: () => {
-    for (const job of cron.getTasks()) job.destroy();
+  stopJobs: () => {
+    for (const job of cron.getTasks()) job.stop();
   }
 };

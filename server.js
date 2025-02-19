@@ -21,7 +21,7 @@ const app = express();
 const middleware = {
   
   /**
-   *  Middleware for blackquerying or whitequerying IP addresses and/or IP address ranges, which can be passed to specific endpoints
+   *  Middleware for blacklisting or whitelisting IP addresses and/or IP address ranges, which can be passed to specific endpoints
    *
    *  @method validateReq
    *  @requires util.patternsToRegEx
@@ -66,7 +66,7 @@ const middleware = {
 }
 
 /**
- *  API endpoint for querying the entire ESOVDB, returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
+ *  API endpoint for querying the entire ESOVDB—returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
  *  @requires esovdb
  *  @callback esovdb.getLatest
  */
@@ -76,7 +76,7 @@ app.get('/v1/videos', [ middleware.auth, middleware.validateReq ], (req, res) =>
 });
 
 /**
- *  API endpoint for querying the ESOVDB, returns JSON. All request params and request query params documented in [esovdb.queryVideos]{@link esovdb.queryVideos}.
+ *  API endpoint for querying the ESOVDB—returns JSON. All request params and request query params documented in [esovdb.queryVideos]{@link esovdb.queryVideos}.
  *  @requires esovdb
  *  @callback esovdb.queryVideos
  */
@@ -86,7 +86,7 @@ app.get('/v1/videos/query/:pg?', [ middleware.auth, middleware.validateReq ], (r
 });
 
 /**
- *  API endpoint for querying the ESOVDB for a single YouTube video, returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideos]{@link esovdb.queryYouTubeVideos}.
+ *  API endpoint for querying the ESOVDB (Video table) for a single YouTube video—returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideos]{@link esovdb.queryYouTubeVideos}.
  *  @requires esovdb
  *  @callback esovdb.queryYouTubeVideos
  */
@@ -96,7 +96,7 @@ app.get('/v1/videos/youtube/:id?', [ middleware.validateReq, middleware.allowCOR
 });
 
 /**
- *  API endpoint for selecting a single video ESOVDB, by its ESOVDB Airtable ID, returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
+ *  API endpoint for selecting a single video from the ESOVDB by its ESOVDB Airtable ID—returns JSON. With the premium header 'esovdb-no-cache' this endpoint always returns fresh results.
  *  @requires esovdb
  *  @callback esovdb.getVideoById
  */
@@ -226,6 +226,29 @@ app.post('/submissions/youtube/video/:id', [ middleware.auth, middleware.validat
 });
 
 /**
+ *  API endpoint for querying the ESOVDB (both Videos and Submissions tables) for a single YouTube video—returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideosAndSubmissions]{@link esovdb.queryYouTubeVideosAndSubmissions}.
+ *  @requires esovdb
+ *  @callback esovdb.queryYouTubeVideosAndSubmissions
+ */
+
+app.get('/v1/submissions/youtube/video/:id?', [ middleware.validateReq, middleware.allowCORS ], (req, res) => {
+  esovdb.queryYouTubeVideosAndSubmissions(req, res);
+});
+
+/**
+ *  API endpoint that sets up a cron job watching a YouTube channel's videos to add to the ESOVDB
+ *  @requires cron
+ *  @callback - cron.startJobs
+ *  @callback - cron.watchYouTubeChannel
+ */
+
+app.post('/watch/youtube/channel', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
+  console.log(`Performing watch/youtube channel API request...`);
+  cron.startJobs([ () => cron.watchYouTubeChannel(req) ]);
+  res.status(202).end()
+});
+
+/**
  *  API endpoint which is the end of all other endpoints
  *  @callback - Sends an HTTP 400 Bad Request status code and an error message in JSON format
  */
@@ -264,6 +287,6 @@ appReady(() => { monitor.ping({ state: 'run', message: 'API Server (re)started.'
 
 cleanUp((code, signal) => {
   db.quit();
-  cron.destroyJobs();
+  cron.stopJobs();
   monitor.ping({ status: 'complete', message: 'API server shut down.' })
 });
