@@ -7,6 +7,7 @@
 const dotenv = require('dotenv').config();
 const cron = require('node-cron');
 const esovdb = require('./esovdb');
+const youtube = require('./youtube');
 
 /**
  *  Picks a random number from within a range for choosing a random node
@@ -26,6 +27,14 @@ module.exports = {
     console.log('Performing daily cache of recently modified videos…');
     await esovdb.updateLatest(false);
   },{
+    scheduled: false
+  }),
+
+  /** @constant {cron.ScheduledTask} checkNextYouTubeChannel - A scheduled cron task to check the next YouTube channel in the watch list for new videos to add to the ESOVDB */
+  checkNextYouTubeChannel: cron.schedule('0 * * * *', async () => {
+    console.log('Checking next YouTube channel in watch list…');
+    await youtube.checkWatchedChannel();
+  }, {
     scheduled: false
   }),
   

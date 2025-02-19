@@ -503,13 +503,43 @@ module.exports = {
                 ? updates.length
                 : 10)
             : ''
-        } of ${queue} total...`
+        } of ${queue} total in table "${table}"...`
       );
 
       i++, rateLimiter.wrap(base(table).update(updates.splice(0, 10)));
     }
     
     return items;
+  },
+
+  processAdditions: (items, table) => {
+    let i = 0, additions = [ ...items ], queue = items.length, results = [];
+
+    while (additions.length) {
+      console.log(
+        `Creating record${additions.length === 1 ? '' : 's'} ${
+          i * 10 + 1
+        }${additions.length > 1 ? '-' : ''}${
+          additions.length > 1
+            ? i * 10 +
+              (additions.length < 10
+                ? additions.length
+                : 10)
+            : ''
+        } of ${queue} total in table "${table}"...`
+      );
+
+      i++
+      rateLimiter.wrap(
+        base(table).create(additions.splice(0, 10), function(err, data) {
+          if (err) throw new Error(err); 
+          console.log('Successfully created batch.');
+          results.push(...data.records);
+        }));
+    }
+
+    console.log(`Successfully created ${results.length > 1 ? results.length + ' new records' : '1 new record'} in table "${table}" on ESOVDB.`);
+    return results;
   },
   
   /**
@@ -580,7 +610,7 @@ module.exports = {
       if (res) res.status(200).send(JSON.stringify(latest));
       else return latest;
     } catch (err) {
-      if (res) res.status(400).end(JSON.stringify(err));
+      if (res) res.status(500).end(JSON.stringify(err));
       else throw new Error(err.message);
     }
   },
@@ -610,7 +640,7 @@ module.exports = {
           return res.status(200).send(JSON.stringify(video));
         }));
     } catch (err) {
-      res.status(400).end(JSON.stringify(err));
+      res.status(500).end(JSON.stringify(err));
     }
   }
 };

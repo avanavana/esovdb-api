@@ -359,6 +359,24 @@ module.exports = {
    *  @returns {string} The current UTC time formatted as YYYY-MM-ddTHHMM
    */
   
-  shortISODateTime: () => `${(new Date()).toLocaleDateString('en-CA')}T${(new Date()).toLocaleTimeString('en-DE').replace(/(?:\:[0-9]{2}$|\:)/g, '')}`
+  shortISODateTime: () => `${(new Date()).toLocaleDateString('en-CA')}T${(new Date()).toLocaleTimeString('en-DE').replace(/(?:\:[0-9]{2}$|\:)/g, '')}`,
+
+  /**
+   *  Validates a date string for the formats YYYY-MM-DD, YYYY-MM, and YYYY, and parses it as a Javascript Date
+   * 
+   *  @param {string} date - a date string in any of the formats YYYY-MM-DD, YYYY-MM, or YYYY
+   *  @throws Will throw if the date string does not match one of the aforementioned formats. 
+   *  @returns {Date} Parsed Javascript Date object for the provided date string
+   */
+
+  validateAndParseDate: (date) => {
+    if (!date) return null;
+    if (!regexDate.test(date)) throw new Error('Invalid date format. Use YYYY-MM-DD, YYYY-MM, or YYYY');
+    
+    const parts = date.split('-');
+    const fullDate = parts[0] + (parts[1] ? `-${parts[1]}` : '-01') + (parts[2] ? `-${parts[2]}` : '-01');
+      
+    return new Date(Date.parse(fullDate));
+  }
   
 }

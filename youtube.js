@@ -7,12 +7,17 @@
 
 const dotenv = require('dotenv').config();
 const axios = require('axios');
-const { sleep, formatYTDuration } = require('./util');
+const cache = require('./cache');
+const { sleep, formatYTDuration, validateAndParseDate } = require('./util');
+const esovdb = require('./esovdb');
 
 const youtube = axios.create({ baseURL: 'https://youtube.googleapis.com/youtube/v3/' });
 
 const regexYTChannel = /^(?:https?:\/\/(?:www\.)?youtube\.com\/channel\/)?(UC[\w-]{21}[AQgw])(?:\/|\/videos)?$/;
 const regexYTPlaylist = /(?!.*\?.*\bv=)(?!rec)(?:youtu\.be\/|youtube\.com\/(?:playlist|list|embed|watch)(?:\.php)?(?:\?.*list=|\/)|)([\w\-]{12,})/;
+const regexDate = /^2[0-9]{3}(?:-[0-1][0-9](?:-[0-3][0-9])?)?$/;
+
+const videoLengths = [ 'any', 'short', 'medium', 'long' ];
 
 const getChannelResultsPage = async (channelId, length = 'any', publishedAfter = null, nextPageToken = null) => {
   try {
@@ -133,6 +138,81 @@ const appendVideoDetails = (list, page) => [
     duration: formatYTDuration(video.contentDetails.duration)
 }))];
 
+/**
+   *  Collects all videos, with video details, from a given YouTube channel and returns them as an array of objects
+   *
+   *  @method collectAllChannelVideos
+   *  @param {string} channelId - The channel ID of the YouTube channel that should be watched
+   *  @param {('any'|'long'|'medium'|'short')} [length='any'] - The length of the videos to query, one of 'any' or 'long', 'medium', or 'short', with 'any' as the default
+   *  @param {string} [publishedAfter] - The date after which the videos should be collected, in one of the formats 'YYYY-MM-DD', 'YYYY-MM', or 'YYYY'
+   *  @returns {(Promise<object[]>|null)} - An array of objects containing the details of the videos collected or null, if no videos were found or retrieved
+   */
+
+const collectAllChannelVideos = async (channelId, length = 'any', publishedAfter) => {
+  let i = 2, videos = [];
+
+  console.log(`Retrieving video IDs from channel "${channelId}"...`);
+  let result = await getChannelResultsPage(channelId, length, publishedAfter);
+  if (result.error) return res.status(500).send(JSON.stringify(result.error));
+  const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
+  videos = appendChannelResultPage(videos, result);
+
+  while (i <= pages) {
+    console.log(`Retrieving video data from page ${i} of ${pages})...`);
+    i++, await sleep(0.2);
+    result = await getChannelResultsPage(channelId, length, publishedAfter, result.data.nextPageToken);
+    if (result.error) return res.status(500).send(JSON.stringify(result.error));
+    videos = appendChannelResultPage(videos, result);
+  }
+
+  if (videos.length) {
+    let videoDetails = [], videoIds = videos.map((video) => video.id);
+
+    while (videoIds.length > 0) {
+      let videoDetailsPage = await getVideoDetailsPage(videoIds.splice(0, 50));
+      videoDetails = appendDetailsResultPage(videoDetails, videoDetailsPage);
+    }
+
+    videos = videos.map((video) => ({ ...video, duration: videoDetails.filter((details) => details.id === video.id)[0].duration }));
+    
+    console.log(`Successfully retrieved data for ${videos.length} video${videos.length === 1 ? '' : 's'} from channel "${videos[0].channel}".`);
+    return videos;
+  } else {
+    console.log('No videos were retrieved for the requested channel and video duration.');
+    return null
+  }
+}
+
+const processChannelVideos = async (channelId, length, publishedAfter) => {
+  try {
+    const videos = await collectAllChannelVideos(channelId, length, publishedAfter ? publishedAfter.toISOString() : undefined);
+
+    if (!videos || !videos.length) return { status: 204 }
+
+    const itemsToAdd = videos.map((video) => ({
+      fields: {
+        'URL': `https://youtu.be/${video.id}`,
+        'Title': video.title || '',
+        'Description': video.description || '',
+        'Year': +video.year || null,
+        'Date': video.date || null,
+        'Running Time': +video.duration || null,
+        'Medium': { name: 'Online Video' },
+        'YouTube Channel Title': video.channel || '',
+        'YouTube Channel ID': video.channelId || '',
+        'Submission Source': { name: 'ESOVDB API Channel Watch' },
+        'Submitted by': 'ESOVDB API'
+      }
+    }));
+
+    const data = await esovdb.processAdditions(itemsToAdd, 'Submissions');
+    return { status: 201, data }
+  } catch (error) {
+    console.error(`Error processing videos from YouTube channel ${channelId}:`, error)
+    return { status: 500, error } 
+  }
+}
+
 module.exports = {
   /**
    *  Watches a YouTube channel for new video uploads to add to the ESOVDB
@@ -140,54 +220,68 @@ module.exports = {
    *  @method watchYouTubeChannel
    *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {string} req.body.channel - The channel ID of the YouTube channel that should be watched
-   *  @sideEffects Starts a [ScheduledTask]{@link cron.ScheduledTask} cron jobs using the [node-cron]{@link cron} library and adds a YouTube channel to a watch list if it does not already exist
+   *  @param {('any'|'long'|'medium'|'short')} [req.body.length='any'] - The length of the videos to watch, one of 'any' or 'long', 'medium', or 'short', with 'any' as the default
+   *  @param {string} [req.body.publishedAfter] - The date after which the videos should be watched, in one of the formats 'YYYY-MM-DD', 'YYYY-MM', or 'YYYY'
+   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class or Boolean false, by default, which allows the function to distinguish between external clients, which need to be sent an HTTPServerResponse object, and internal usage of the function, which need to return a value
    */
-  watchYouTubeChannel: (req) => {
+  watchYouTubeChannel: async (req, res) => {
+    if (!req.body.channel || !regexYTChannel.test(req.body.channel)) return res.status(400).send('Invalid YouTube channel ID or URL.');
+    const channelId = regexYTChannel.exec(req.body.channel)[1];
+    const length = videoLengths.includes(req.body.length) ? req.body.length : 'any';
+    let publishedAfter;
+
+    try {
+      publishedAfter = validateAndParseDate(req.body.publishedAfter);
+    } catch (error) {
+      return res.status(400).send(error.message);
+    }
+
     const cachePath = `.cache${req.url}.json`;
-    const cachedResult = cache.readCacheWithPath(cachePath);
-    
-    let watchList;
-    
-    if (cachedResult !== null) {
-      console.log(`Cache hit. Returning cached result for ${req.url}...`);
-      watchList = cachedResult;
-    } else {
-      console.log(`Cache miss. Loading from Airtable for ${req.url}...`);
+    const watchlist = cache.readCacheWithPath(cachePath) || [];
+    if (watchlist.some((item) => item.channelId === channelId)) return res.status(409).send('Channel already in watch list');
+
+    try {
+      console.log(`Adding YouTube channel ${channelId} to ESOVDB watchlist and checking for new videos…`);
+      const result = await processChannelVideos(channelId, length, publishedAfter);
+
+      watchlist.push({ channelId, length, created: Date.now(), lastChecked: result.status === 201 ? Date.now() : null });
+      cache.writeCacheWithPath(cachePath, watchlist)
+
+      return res.status(result.status).send(result.status === 201 ? result.data : result.status === 204 ? 'No videos found.' : JSON.stringify(result.error));
+    } catch (error) {
+      console.error(`Error creating new watch list item for YouTube channel ${channelId}:`, error);
+      return res.status(500).send(JSON.stringify(error));
     }
   },
+
+  checkWatchedChannel: async() => {
+    const cachePath = `.cache/watch/youtube/channel.json`;
+    const watchlist = cache.readCacheWithPath(cachePath) || [];
+
+    if (watchlist.length === 0) {
+      console.log('No channels found in watchlist—aborting hourly YouTube channel check.')
+      return
+    }
+
+    const channel = watchlist.shift();
+    const publishedAfter = channel.lastChecked ? new Date(channel.lastChecked) : null;
+
+    try {
+      console.log(`Checking videos from YouTube channel ${channel.channelId} (last updated: ${publishedAfter ? publishedAfter.toLocaleString() : 'never'})…`);
+      const result = await processChannelVideos(channel.channelId, channel.length, publishedAfter);
+      if (result.status === 201) channel.lastChecked = Date.now();
+      watchlist.push(channel);
+      cache.writeCacheWithPath(cachePath, watchlist);
+    } catch (error) {
+      console.error(`Error processing new videos from YouTube channel ${channel.channelId}:`, error);
+    }
+  },
+
   getChannelVideos: async (req, res) => {
     if (!req.body.channel) return res.status(400).send('Channel ID or URL required.');
-    let i = 2, videos = [], channelId = regexYTChannel.exec(req.body.channel)[1];
-    console.log(`Retrieving video IDs from channel "${channelId}"...`);
-    let result = await getChannelResultsPage(channelId, req.body.length || 'any', req.body.publishedAfter);
-    if (result.error) return res.status(400).send(JSON.stringify(result.error));
-    const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
-    videos = appendChannelResultPage(videos, result);
-
-    while (i <= pages) {
-      console.log(`Retrieving video data from page ${i} of ${pages})...`);
-      i++, await sleep(0.2);
-      result = await getChannelResultsPage(channelId, req.body.length || 'any', req.body.publishedAfter, result.data.nextPageToken);
-      if (result.error) return res.status(400).send(JSON.stringify(result.error));
-      videos = appendChannelResultPage(videos, result);
-    }
-
-    if (videos.length) {
-      let videoDetails = [], videoIds = videos.map((video) => video.id);
-
-      while (videoIds.length > 0) {
-        let videoDetailsPage = await getVideoDetailsPage(videoIds.splice(0, 50));
-        videoDetails = appendDetailsResultPage(videoDetails, videoDetailsPage);
-      }
-
-      videos = videos.map((video) => ({ ...video, duration: videoDetails.filter((details) => details.id === video.id)[0].duration }));
-      
-      console.log(`Successfully retrieved data for ${videos.length} video${videos.length === 1 ? '' : 's'} from channel "${videos[0].channel}".`);
-      return res.status(200).send(videos);
-    } else {
-      console.log('No videos were retrieved for the requested channel and video duration.');
-      return res.status(204).send('No videos retrieved.');
-    }
+    const channelId = regexYTChannel.exec(req.body.channel)[1];
+    const videos = await collectAllChannelVideos(channelId, req.body.length, req.body.publishedAfter);
+    return videos ? res.status(200).send(videos) : res.status(204).send('No videos retrieved.');
   },
   
   getPlaylistVideos: async (req, res) => {
@@ -198,7 +292,7 @@ module.exports = {
     const playlistTitle = playlistData ? playlistData.snippet.title : playlistId;
     console.log(`Retrieving video IDs from playlist "${playlistTitle}"...`);
     let result = await getPlaylistItemsResultsPage(playlistId);
-    if (result.error) return res.status(400).send(JSON.stringify(result.error));
+    if (result.error) return res.status(500).send(JSON.stringify(result.error));
     const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
     videos = appendPlaylistItemsResultPage(videos, result, playlistTitle);
 
@@ -206,7 +300,7 @@ module.exports = {
       console.log(`Retrieving video data from page ${i} of ${pages})...`);
       i++, await sleep(0.2);
       result = await getPlaylistItemsResultsPage(playlistId, result.data.nextPageToken);
-      if (result.error) return res.status(400).send(JSON.stringify(result.error));
+      if (result.error) return res.status(500).send(JSON.stringify(result.error));
       videos = appendPlaylistItemsResultPage(videos, result, playlistTitle);
     }
 

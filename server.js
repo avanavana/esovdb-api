@@ -244,8 +244,7 @@ app.get('/v1/submissions/youtube/video/:id?', [ middleware.validateReq, middlewa
 
 app.post('/watch/youtube/channel', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
   console.log(`Performing watch/youtube channel API request...`);
-  cron.startJobs([ () => cron.watchYouTubeChannel(req) ]);
-  res.status(202).end()
+  youtube.watchYouTubeChannel(req, res);
 });
 
 /**
@@ -269,7 +268,7 @@ app.get('/*', (req, res) => {
 const listener = app.listen(3000, '0.0.0.0', () => {
   monitor.ping({ state: 'ok', message: 'API server listen on port 3000.' });
   db.connect();
-  cron.startJobs([ cron.getLatest ]);
+  cron.startJobs([ cron.getLatest, cron.checkNextYouTubeChannel ]);
   console.log('API proxy listen on port ' + listener.address().port);
 });
 
