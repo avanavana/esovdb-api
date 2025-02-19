@@ -31,7 +31,7 @@ module.exports = {
   }),
 
   /** @constant {cron.ScheduledTask} checkNextYouTubeChannel - A scheduled cron task to check the next YouTube channel in the watch list for new videos to add to the ESOVDB */
-  checkNextYouTubeChannel: cron.schedule('0 * * * *', async () => {
+  checkNextYouTubeChannel: cron.schedule('0 */6 * * *', async () => {
     console.log('Checking next YouTube channel in watch list…');
     await youtube.checkWatchedChannel();
   }, {
