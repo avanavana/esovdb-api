@@ -9,7 +9,6 @@ const dotenv = require('dotenv').config();
 const Airtable = require('airtable');
 const Bottleneck = require('bottleneck');
 const cache = require('./cache');
-const { getVideo } = require('./youtube');
 const { formatDuration, formatDate, packageAuthors, sleep } = require('./util');
 
 const base = new Airtable({
@@ -618,6 +617,7 @@ module.exports = {
   newVideoSubmission: async (req, res) => {
     try {
       if (!regexYTVideoId.test(req.params.id)) return res.status(400).send('Invalid YouTube Video ID.');
+      const { getVideo } = require('./youtube');
       const video = await getVideo(req.params.id);  
       const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
       
