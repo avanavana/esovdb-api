@@ -168,7 +168,7 @@ const getFormat = (param = null, def = videoFormat.toZoteroJSON) => {
 module.exports = {
   
   /**
-   *  Retrieves a query of videos by first checking the cache for a matching, fresh request, and otherwise performs an Airtable select() API query, page by page {@link req.query.pageSize} videos at a time (default=100), until all or {@link req.query.maxRecords}, if specified, using Botleneck for rate-limiting.  
+   *  Retrieves videos from the ESOVDB by first checking the cache for a matching, fresh request, and otherwise performing an Airtable select() API query, page by page {@link req.query.pageSize} videos at a time (default=100), until all or {@link req.query.maxRecords}, if specified, using Botleneck for rate-limiting.  
    *
    *  @method queryVideos
    *  @requires Airtable
@@ -311,6 +311,97 @@ module.exports = {
           )
       );
       
+      if (!res) return data;
+    }
+  },
+  
+/**
+   *  Retrieves submissions from the ESOVDB by first checking the cache for a matching, fresh request, and otherwise performing an Airtable select() API query, page by page {@link req.query.pageSize} submissions at a time (default=100), until all or {@link req.query.maxRecords}, if specified, using Botleneck for rate-limiting.  
+   *
+   *  @method queryVideos
+   *  @requires Airtable
+   *  @requires Bottleneck
+   *  @requires cache
+   *  @requires util
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
+   *  @param {(!express:Response|Boolean)} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class, or false if not passed
+   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript Object
+   *  @returns {Object[]} Array of ESOVDB submission records as JavaScript objects (if no {@link res} object is provided)
+   */
+
+  querySubmissions: (req, res = false) => {
+    if (!req.params) req.params = {};
+    if (!req.query) req.query = {};
+
+    let createdAfter, createdAfterDate;
+
+    if (
+      req.query.createdAfter &&
+      typeof Date.parse(decodeURIComponent(req.query.createdAfter)) === 'number' &&
+      Date.parse(decodeURIComponent(req.query.createdAfter)) > 0
+    ) {
+      createdAfter = Date.parse(decodeURIComponent(req.query.createdAfter));
+      createdAfterDate = new Date(createdAfter);
+    }
+
+    console.log(`Querying submissions created after ${createdAfterDateString}...`);
+
+    const cachePath = `.cache${req.url}.json`;
+    const cachedResult = cache.readCacheWithPath(cachePath);
+
+    if (cachedResult !== null) {
+      console.log(`Cache hit. Returning cached result for ${req.url}...`);
+      return res ? res.status(200).send(JSON.stringify(cachedResult)) : cachedResult;
+    } else {
+      console.log(`Cache miss. Loading from Airtable for ${req.url}...`);
+
+      let data = [],
+          pg = 0,
+          ps = 100,
+          options = {
+            pageSize: ps,
+            view: 'Open Submissions',
+            sort: [{ field: 'Created', direction: 'desc' }],
+            filterByFormula: `IS_AFTER(CREATED_TIME(), "${createdAfterDateString}")`
+          };
+
+      rateLimiter.wrap(
+        base('Submissions')
+          .select(options)
+          .eachPage(
+            function page(records, fetchNextPage) {
+              if (!req.params.pg || pg == req.params.pg) {
+                console.log(`Retrieving records ${pg * ps + 1}-${(pg + 1) * ps}...`);
+                data = [ ...data, ...records.map((record) => ({ id: record.id, ...record.fields })) ];
+
+                if (pg == req.params.pg) {
+                  console.log(`[DONE] Retrieved ${data.length} records.`);
+                  cache.writeCacheWithPath(cachePath, data);
+                  if (res) return res.status(200).send(JSON.stringify(data));
+                } else {
+                  console.log(`Successfully retrieved ${records.length} records.`);
+                }
+
+                pg++, fetchNextPage();
+              } else {
+                pg++, fetchNextPage();
+              }
+            },
+            function done(err) {
+              if (err) {
+                console.error(err);
+                if (res) return res.status(400).send(JSON.stringify(err));
+                else throw new Error(err.message);
+              } else {
+                console.log(`[DONE] Retrieved ${data.length} records.`);
+                cache.writeCacheWithPath(cachePath, data);
+                if (res) return res.status(200).send(JSON.stringify(data));
+              }
+            }
+          )
+      );
+
       if (!res) return data;
     }
   },
@@ -591,6 +682,37 @@ module.exports = {
   },
   
   /**
+   *  Merges previously cached ESOVDB submissions data with submissions modified in the past 24 hours.
+   *
+   *  @async
+   *  @method updateLatestSubmissions
+   *  @param {Boolean} [useCache=true] - Whether or not data on the 'latest' data (i.e. modifications to ESOVDB submissions data made in the past 24 hours) should be pulled from the cache, or freshly retrieved from the ESOVDB Airtable
+   *  @sideEffects Reads from and writes to (overwrites) a JSON file containing all submissions data in the ESOVDB with any modifications made in the past 24 hours
+   *  @returns {Object[]} Returns all ESOVDB submissions data with any (if there are any) modifications made in the past 24 hours
+   */
+  
+  updateLatestSubmissions: async (useCache = true) => {
+    let result, lastTime = new Date(); lastTime.setHours(0); lastTime.setMinutes(0); lastTime.setSeconds(0); lastTime.setMilliseconds(0); lastTime.setDate(lastTime.getDate() - 1);
+    const createdAfter = encodeURIComponent(lastTime.toLocaleString());
+    const existing = cache.readCacheWithPath('.cache/v1/submissions/query/all.json', false);
+    const cachedModified = useCache ? cache.readCacheWithPath('.cache/v1/submissions/query/latest.json') : null;
+    const modified = cachedModified ? cachedModified : await module.exports.querySubmissions({ url: '/v1/submissions/query/latest', query: { createdAfter } });
+    await sleep(5);
+
+    if (modified.length > 0) {
+      result = [ ...existing.filter((e) => !modified.some((m) => m.recordId === e.recordId)), ...modified ].sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified));
+      cache.writeCacheWithPath('.cache/v1/submissions/query/all.json', result);
+      console.log('› Overwrote existing submission data with modified submissions and rewrote cache.');
+    } else {
+      result = existing;
+      console.log('› Retrieved existing submission data, no new submissions to cache.');
+    }
+    
+    console.log(`[DONE] Successfully retrieved ${result.length} submissions.`);
+    return result;
+  },
+  
+  /**
    *  Passes the body of an HTTP POST request to this server on to {@link updateLatest}, which merges previously cached ESOVDB videos data (the vast majority of all videos in the DB) with videos modified in the past 24 hours.
    *
    *  @async
@@ -606,6 +728,30 @@ module.exports = {
     try {
       console.log(`Performing videos/all ${res ? 'external' : 'internal'} API request...`);
       const latest = await module.exports.updateLatest(req.headers && req.headers['esovdb-no-cache'] && req.headers['esovdb-no-cache'] === process.env.ESOVDB_NO_CACHE ? false : true);
+      if (res) res.status(200).send(JSON.stringify(latest));
+      else return latest;
+    } catch (err) {
+      if (res) res.status(500).end(JSON.stringify(err));
+      else throw new Error(err.message);
+    }
+  },
+  
+  /**
+   *  Passes the body of an HTTP POST request to this server on to {@link updateLatest}, which merges previously cached ESOVDB submissions data with submissions modified in the past 24 hours.
+   *
+   *  @async
+   *  @method getLatestSubmissions
+   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {Object[]} req.body - An array of objects formatted as updates for Airtable (i.e. [ { id: 'recordId', fields: { 'Airtable Field': 'value', ... } }, ... ]) passed as the body of the [server request]{@link req}
+   *  @param {!express:Response} [res=false] - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class or Boolean false, by default, which allows the function to distinguish between external clients, which need to be sent an HTTPServerResponse object, and internal usage of the function, which need to return a value
+   *  @sideEffects Overwrites a JSON file containing all video data in the ESOVDB with any modifications made in the past 24 hours. If {@link res} is provided, sends an HTTPServerResponse object to the requesting client
+   *  @returns {Object[]} If {@link res} is not provided (i.e. internal consumption of this API method), returns all ESOVDB submissions data with any modifications made in the past 24 hours
+   */
+  
+  getLatestSubmissions: async (req, res = false) => {
+    try {
+      console.log(`Performing submissions/all ${res ? 'external' : 'internal'} API request...`);
+      const latest = await module.exports.updateLatestSubmissions(req.headers && req.headers['esovdb-no-cache'] && req.headers['esovdb-no-cache'] === process.env.ESOVDB_NO_CACHE ? false : true);
       if (res) res.status(200).send(JSON.stringify(latest));
       else return latest;
     } catch (err) {

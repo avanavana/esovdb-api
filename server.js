@@ -226,6 +226,26 @@ app.post('/submissions/youtube/video/:id', [ middleware.auth, middleware.validat
 });
 
 /**
+ *  API endpoint for querying the entire ESOVDB submissions table—returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
+ *  @requires esovdb
+ *  @callback esovdb.getLatestSubmissions
+ */
+
+app.get('/v1/submissions', [ middleware.auth, middleware.validateReq ], (req, res) => {
+  esovdb.getLatestSubmissions(req, res);
+});
+
+/**
+ *  API endpoint for querying the ESOVDB submissions table—returns JSON. All request params and request query params documented in [esovdb.querySubmissions]{@link esovdb.querySubmissions}.
+ *  @requires esovdb
+ *  @callback esovdb.querySubmissions
+ */
+
+app.get('/v1/submissions/query/:pg?', [ middleware.auth, middleware.validateReq ], (req, res) => {
+  esovdb.querySubmissions(req, res);
+});
+
+/**
  *  API endpoint for querying the ESOVDB (both Videos and Submissions tables) for a single YouTube video—returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideosAndSubmissions]{@link esovdb.queryYouTubeVideosAndSubmissions}.
  *  @requires esovdb
  *  @callback esovdb.queryYouTubeVideosAndSubmissions
