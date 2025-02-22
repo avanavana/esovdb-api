@@ -197,10 +197,10 @@ const processChannelVideos = async (channelId, length, publishedAfter) => {
         'Year': +video.year || null,
         'Date': video.date || null,
         'Running Time': +video.duration || null,
-        'Medium': { name: 'Online Video' },
+        'Medium': 'Online Video',
         'YouTube Channel Title': video.channel || '',
         'YouTube Channel ID': video.channelId || '',
-        'Submission Source': { name: 'ESOVDB API Channel Watch' },
+        'Submission Source': 'ESOVDB API Channel Watch',
         'Submitted by': 'ESOVDB API'
       }
     }));
