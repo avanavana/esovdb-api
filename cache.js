@@ -57,15 +57,24 @@ module.exports = {
    */
   
   readCacheWithPath: (path, stale = true) => {
-    if (stale) {
-      path = path.replace('?', '/');
+    path = path.replace('?', '/');
 
-      if (fs.existsSync(path)) {
-        const cachedTime = fs.statSync(path).ctime;
-        stale = (new Date().getTime() - cachedTime) / 1000 > cacheInterval ? true : false;
-      }
+    if (!fs.existsSync(path)) {
+        console.log(`Cache file does not exist: ${path}`);
+        return null;
     }
 
-    return stale ? null : JSON.parse(fs.readFileSync(path, 'utf8'));
+    if (stale) {
+      const cachedTime = fs.statSync(path).ctime;
+      stale = (new Date().getTime() - cachedTime) / 1000 > cacheInterval;
+      if (stale) return null;
+    }
+
+    try {
+      return JSON.parse(fs.readFileSync(path, 'utf8'));
+    } catch (err) {
+      console.error(`Failed to read cache file "${path}":`, err);
+      return null;
+    }
   }
 };
