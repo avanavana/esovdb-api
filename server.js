@@ -47,8 +47,11 @@ const middleware = {
   },
   
   auth: (req, res, next) => {
-    if (req.headers['esovdb-key'] && req.headers['esovdb-key'] === process.env.ESOVDB_KEY) {
+    if (req.headers['x-esovdb-key'] && req.headers['x-esovdb-key'] === process.env.ESOVDB_KEY) {
       console.log('ESOVDB key validated.');
+      next();
+    } else if (req.headers['esovdb-key'] && req.headers['esovdb-key'] === process.env.ESOVDB_KEY) {
+      console.log('ESOVDB key validated (using deprecated header—update this client!');
       next();
     } else if (req.headers['X-RapidAPI-Proxy-Secret'] && req.headers['X-RapidAPI-Proxy-Secret'] === process.env.RAPIDAPI_SECRET) {
       console.log('RapidAPI proxy secret validated.');
