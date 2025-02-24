@@ -278,7 +278,7 @@ module.exports = {
         filterStrings.push(`REGEX_MATCH({URL}, "${likeYTID}")`);
       
       if (searchText)
-        filterStrings.push(`OR(REGEX_MATCH(LOWER({Title}&''), "${searchText}),REGEX_MATCH(LOWER({Description}&''), "${searchText}),REGEX_MATCH(LOWER({Tags}&''), "${searchText}))`);
+        filterStrings.push(`OR(REGEX_MATCH(LOWER({Title}&''), "${searchText}"),REGEX_MATCH(LOWER({Description}&''), "${searchText}"),REGEX_MATCH(LOWER({Tags}&''), "${searchText}"))`);
       
       if (filterStrings.length > 0)
         options.filterByFormula = filterStrings.length > 1 ? `AND(${filterStrings.join(',')})` : filterStrings[0]
