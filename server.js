@@ -57,8 +57,9 @@ const middleware = {
       console.log('RapidAPI proxy secret validated.');
       next();
     } else {
-      console.error(`Unauthorized attempted access of ${req.path} without a valid ESOVDB key.`);
-      res.status(401).send('Unauthorized access. Visit https://rapidapi.com/avanavana/api/the-earth-science-online-video-database for access.');
+      const d = new Date(), ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
+      console.error(`[${d.toLocaleString()}] (${ip}) Unauthorized attempted access of ${req.path} without a valid ESOVDB key.`);
+      res.status(401).send('Unauthorized access. Visit https://rapidapi.com/the-earth-science-online-video-database-the-earth-science-online-video-database-default/api/the-earth-science-online-video-database for access.');
     }
   },
   
