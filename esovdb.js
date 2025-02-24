@@ -182,6 +182,7 @@ module.exports = {
    *  @param {string} [req.query.createdAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records created after the date in the given string
    *  @param {string} [req.query.modifiedAfter] - An [http request]{@link req} URL query param, in the format of a date string, parseable by Date.parse(), used to create a filterByFormula in an Airtable API call that returns only records modified after the date in the given string
    *  @param {string} [req.query.youTube] - A YouTube video's URL, short URL, or video ID
+   *  @param {string} [req.query.searchText] - A string of text to search within multiple fields in the ESOVDB
    *  @param {(!express:Response|Boolean)} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class, or false if not passed
    *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript Object
    *  @returns {Object[]} Array of ESOVDB video records as JavaScript objects (if no {@link res} object is provided)
@@ -192,10 +193,10 @@ module.exports = {
     if (!req.query) req.query = {};
     req.params.pg = !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 ? null : +req.params.pg - 1;
     
-    if (!req.query.pageSize || !Number(req.query.pageSize || req.query.pageSize > 100))
-      req.query.pageSize = 100;
+    if (!req.query.pageSize || isNaN(req.query.pageSize) || +req.query.pageSize > 100 || +req.query.pageSize <= 0)
+      req.query.pageSize = 100
     
-    if (!Number(req.query.maxRecords || req.query.maxRecords == 0))
+    if (!req.query.maxRecords || isNaN(req.query.maxRecords) || +req.query.maxRecords <= 0)
       req.query.maxRecords = null;
     
     if (req.query.maxRecords && +req.query.maxRecords < +req.query.pageSize)
@@ -205,11 +206,12 @@ module.exports = {
         modifiedAfterDate,
         createdAfter,
         createdAfterDate,
-        likeYTID;
+        likeYTID,
+        searchText;
     
     if (
       req.query.modifiedAfter &&
-      typeof Date.parse(decodeURIComponent(req.query.modifiedAfter)) === 'number' &&
+      !isNaN(Date.parse(decodeURIComponent(req.query.modifiedAfter))) &&
       Date.parse(decodeURIComponent(req.query.modifiedAfter)) > 0
     ) {
       modifiedAfter = Date.parse(decodeURIComponent(req.query.modifiedAfter));
@@ -218,7 +220,7 @@ module.exports = {
 
     if (
       req.query.createdAfter &&
-      typeof Date.parse(decodeURIComponent(req.query.createdAfter)) === 'number' &&
+      !isNaN(Date.parse(decodeURIComponent(req.query.createdAfter))) &&
       Date.parse(decodeURIComponent(req.query.createdAfter)) > 0
     ) {
       createdAfter = Date.parse(decodeURIComponent(req.query.createdAfter));
@@ -227,6 +229,8 @@ module.exports = {
     
     if (req.query.youTube && regexYT.test(decodeURIComponent(req.query.youTube))) likeYTID = regexYT.exec(decodeURIComponent(req.query.youTube))[1];
     
+    if (req.query.searchText) searchText = decodeURIComponent(req.query.searchText).toLowerCase();
+    
     let queryText = req.params.pg !== null ?
       `for page ${req.params.pg + 1} (${req.query.pageSize} results per page)` :
       `(${req.query.pageSize} results per page, ${req.query.maxRecords ? 'up to ' + req.query.maxRecords : 'for all'} results)`;
@@ -234,6 +238,7 @@ module.exports = {
     queryText += modifiedAfterDate ? ', modified after ' + modifiedAfterDate.toLocaleString() : '';
     queryText += createdAfterDate ? ', created after ' + createdAfterDate.toLocaleString() : '';
     queryText += likeYTID ? `, matching YouTube ID "${likeYTID}"` : '';
+    queryText += searchText ? `, matching text (case-insensitive) "${searchText}"` : '';
     
     console.log(`Performing videos/query ${res ? 'external' : 'internal'} API request ${queryText}...`);
 
@@ -264,16 +269,19 @@ module.exports = {
         options.maxRecords = +req.query.maxRecords;
       
       if (modifiedAfter)
-        filterStrings.push(`IS_AFTER({Modified}, DATETIME_PARSE(${modifiedAfter}))`);
+        filterStrings.push(`IS_AFTER({Modified}, "${modifiedAfterDate.toISOString()}")`);
       
       if (createdAfter)
-        filterStrings.push(`IS_AFTER(CREATED_TIME(), DATETIME_PARSE(${createdAfter}))`);
+        filterStrings.push(`IS_AFTER(CREATED_TIME(), "${createdAfterDate.toISOString()}")`);
       
       if (likeYTID)
         filterStrings.push(`REGEX_MATCH({URL}, "${likeYTID}")`);
       
+      if (searchText)
+        filterStrings.push(`OR(REGEX_MATCH(LOWER({Title}&''), "${searchText}),REGEX_MATCH(LOWER({Description}&''), "${searchText}),REGEX_MATCH(LOWER({Tags}&''), "${searchText}))`);
+      
       if (filterStrings.length > 0)
-        options.filterByFormula = `AND(${filterStrings.join(',')})`;
+        options.filterByFormula = filterStrings.length > 1 ? `AND(${filterStrings.join(',')})` : filterStrings[0]
 
       rateLimiter.wrap(
         base('Videos')
@@ -331,21 +339,34 @@ module.exports = {
    */
 
   querySubmissions: (req, res = false) => {
+    console.log('starting querySubmissions');
     if (!req.params) req.params = {};
     if (!req.query) req.query = {};
+    req.params.pg = !req.params.pg || !Number(req.params.pg) || +req.params.pg < 0 ? null : +req.params.pg - 1;
+    
+    if (!req.query.pageSize || isNaN(req.query.pageSize) || +req.query.pageSize > 100 || +req.query.pageSize <= 0)
+      req.query.pageSize = 100
+    
+    if (!req.query.maxRecords || isNaN(req.query.maxRecords) || +req.query.maxRecords <= 0)
+      req.query.maxRecords = null;
+    
+    if (req.query.maxRecords && +req.query.maxRecords < +req.query.pageSize)
+      req.query.pageSize = req.query.maxRecords;
 
     let createdAfter, createdAfterDate;
 
     if (
       req.query.createdAfter &&
-      typeof Date.parse(decodeURIComponent(req.query.createdAfter)) === 'number' &&
+      !isNaN(Date.parse(decodeURIComponent(req.query.createdAfter))) &&
       Date.parse(decodeURIComponent(req.query.createdAfter)) > 0
     ) {
       createdAfter = Date.parse(decodeURIComponent(req.query.createdAfter));
       createdAfterDate = new Date(createdAfter);
+    } else {
+      createdAfterDate = null
     }
 
-    console.log(`Querying submissions created after ${createdAfterDateString}...`);
+    console.log(`Querying submissions created ${createdAfterDate ? 'after ' + createdAfterDate.toLocaleString() : 'since the beginning'}...`);
 
     const cachePath = `.cache${req.url}.json`;
     const cachedResult = cache.readCacheWithPath(cachePath);
@@ -358,13 +379,22 @@ module.exports = {
 
       let data = [],
           pg = 0,
-          ps = 100,
+          ps = +req.query.pageSize,
+          filterStrings = [],
           options = {
             pageSize: ps,
             view: 'Open Submissions',
-            sort: [{ field: 'Created', direction: 'desc' }],
-            filterByFormula: `IS_AFTER(CREATED_TIME(), "${createdAfterDateString}")`
+            sort: [{ field: 'Created', direction: 'desc' }]
           };
+      
+      if (req.query.maxRecords && !req.params.pg)
+        options.maxRecords = +req.query.maxRecords;
+      
+      if (createdAfter)
+        filterStrings.push(`IS_AFTER(CREATED_TIME(), "${createdAfterDate.toISOString()}")`);
+      
+      if (filterStrings.length > 0)
+        options.filterByFormula = filterStrings.length > 1 ? `AND(${filterStrings.join(',')})` : filterStrings[0]
 
       rateLimiter.wrap(
         base('Submissions')
@@ -583,20 +613,23 @@ module.exports = {
     let i = 0, updates = [ ...items ], queue = items.length;
 
     while (updates.length) {
+      const batch = updates.splice(0, 10);
+      
       console.log(
-        `Updating record${updates.length === 1 ? '' : 's'} ${
+        `Updating record${batch.length === 1 ? '' : 's'} ${
           i * 10 + 1
-        }${updates.length > 1 ? '-' : ''}${
-          updates.length > 1
+        }${batch.length > 1 ? '-' : ''}${
+          batch.length > 1
             ? i * 10 +
-              (updates.length < 10
-                ? updates.length
+              (batch.length < 10
+                ? batch.length
                 : 10)
             : ''
         } of ${queue} total in table "${table}"...`
       );
-
-      i++, rateLimiter.wrap(base(table).update(updates.splice(0, 10)));
+  
+      i++;
+      rateLimiter.wrap(base(table).update(batch));
     }
     
     return items;
@@ -606,29 +639,33 @@ module.exports = {
     let i = 0, additions = [ ...items ], queue = items.length, results = [];
 
     while (additions.length) {
+      const batch = additions.splice(0, 10);
+      
       console.log(
-        `Creating record${additions.length === 1 ? '' : 's'} ${
+        `Creating record${batch.length === 1 ? '' : 's'} ${
           i * 10 + 1
-        }${additions.length > 1 ? '-' : ''}${
-          additions.length > 1
+        }${batch.length > 1 ? '-' : ''}${
+          batch.length > 1
             ? i * 10 +
-              (additions.length < 10
-                ? additions.length
+              (batch.length < 10
+                ? batch.length
                 : 10)
             : ''
         } of ${queue} total in table "${table}"...`
       );
 
-      i++
+      i++;
       rateLimiter.wrap(
-        base(table).create(additions.splice(0, 10), function(err, data) {
+        base(table).create(batch, function(err, data) {
           if (err) throw new Error(err); 
           console.log('Successfully created batch.');
+          console.log(data); // TODO: remove
           results.push(...data.records);
         }));
     }
-
+    
     console.log(`Successfully created ${results.length > 1 ? results.length + ' new records' : '1 new record'} in table "${table}" on ESOVDB.`);
+    console.log(results); // TODO: remove
     return results;
   },
   
@@ -645,7 +682,7 @@ module.exports = {
   updateTable: async (req, res) => {
     if (req.body.length > 0) {
       console.log(`Performing ${req.params.table}/update API request for ${req.body.length} record${req.body.length === 1 ? '' : 's'}...`);
-      const data = await module.exports.processUpdates(req.body, tables.get(req.params.table));
+      const data = module.exports.processUpdates(req.body, tables.get(req.params.table));
       res.status(200).send(JSON.stringify(data));
     }
   },

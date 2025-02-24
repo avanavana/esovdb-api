@@ -60,8 +60,8 @@ module.exports = {
     path = path.replace('?', '/');
 
     if (!fs.existsSync(path)) {
-        console.log(`Cache file does not exist: ${path}`);
-        return null;
+      console.log(`Cache file does not exist: ${path}`);
+      return null;
     }
 
     if (stale) {
