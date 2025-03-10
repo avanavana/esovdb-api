@@ -72,7 +72,7 @@ const sources = new Map([
  *  Reads and returns a fresh copy of the webhooks database every time it is called
  *
  *  @function webhooksDb
- *  @returns {Object} webhooksDb - Static snapshot of
+ *  @returns {Object} webhooksDb - Static snapshot of the webhooks database.
  */
 
 const webhooksDb = () => JSON.parse(fs.readFileSync(process.env.WEBHOOKS_DB, 'utf8'));
@@ -108,10 +108,11 @@ const actions = new Map([
    */
 
   [ 'create', async (events, callbackUrl) => {
+    const webhooksDbInstance = webhooksDb();
     let added = [], unchanged = [], failed = [];
 
     for await (let e of events) {
-      if (webhooksDb()[e] && webhooksDb()[e].includes(callbackUrl)) {
+      if (webhooksDbInstance[e] && webhooksDbInstance[e].includes(callbackUrl)) {
         unchanged.push(e);
         continue;
       } else {
@@ -141,10 +142,11 @@ const actions = new Map([
    */
 
   [ 'update', async (events, callbackUrl) => {
+    const webhooksDbInstance = webhooksDb();
     let added = [], removed = [], unchanged = [], failed = [];
 
-    const eventsToRemove = Object.keys(webhooksDb()).filter((k) => !events.includes(k)).map((e) => ({ name: e, callbackUrls: webhooksDb()[e] })).filter((i) => i.callbackUrls.includes(callbackUrl)).map((i) => i.name);
-    const eventsToAdd = events.filter((e) => !webhooksDb()[e] || (webhooksDb()[e] && !webhooksDb()[e].includes(callbackUrl)));
+    const eventsToRemove = Object.keys(webhooksDbInstance).filter((k) => !events.includes(k)).map((e) => ({ name: e, callbackUrls: webhooksDbInstance[e] })).filter((i) => i.callbackUrls.includes(callbackUrl)).map((i) => i.name);
+    const eventsToAdd = events.filter((e) => !webhooksDbInstance[e] || (webhooksDbInstance[e] && !webhooksDbInstance[e].includes(callbackUrl)));
     unchanged.push(...events.filter((e) => !eventsToRemove.includes(e) && !eventsToAdd.includes(e)));
 
     for await (let e of eventsToRemove) {
@@ -184,10 +186,11 @@ const actions = new Map([
    */
   
   [ 'delete', async (events, callbackUrl) => {
+    const webhooksDbInstance = webhooksDb();
     let removed = [], unchanged = [], failed = [];
 
     for await (let e of events) {
-      if (webhooksDb()[e] && webhooksDb()[e].includes(callbackUrl)) {
+      if (webhooksDbInstance[e] && webhooksDbInstance[e].includes(callbackUrl)) {
         const response = await webhooks.remove(e, callbackUrl);
         if (response) removed.push(e);
         else failed.push(e);
@@ -326,12 +329,13 @@ module.exports = {
    */
   
   list: (req, res) => {
+    const webhooksDbInstance = webhooksDb();
     let code;
 
     try {
       if (!req.query.url) return res.status(200).send(JSON.stringify(canon));
       if (req.query.url && !regexURL.test(decodeURIComponent(req.query.url))) { code = 400; throw new Error('Missing or malformed "url" query parameter.'); }
-      const events = Object.keys(webhooksDb()).map((k) => ({ name: k, callbacks: webhooksDb()[k] })).filter((event) => event.callbacks.includes(decodeURIComponent(req.query.url))).map((event) => event.name);
+      const events = Object.keys(webhooksDbInstance).map((k) => ({ name: k, callbacks: webhooksDbInstance[k] })).filter((event) => event.callbacks.includes(decodeURIComponent(req.query.url))).map((event) => event.name);
       if (!events || events.length === 0) { code = 404; throw new Error(`No webhook event(s) found for callback URL "${decodeURIComponent(req.query.url)}".`); }
       console.log(`[DONE] Retrieved ${events.length} webhook event(s).`);
       return res.status(200).send(JSON.stringify(events));

@@ -1,11 +1,12 @@
 /**
  *  @file YouTube API Functions
  *  @author Avana Vana <avana@esovdb.org>
- *  @version 2.2.0
+ *  @version 3.0.0
  *  @module youtube
  */
 
 const dotenv = require('dotenv').config();
+const fs = require('fs');
 const axios = require('axios');
 const cache = require('./cache');
 const { sleep, formatYTDuration, validateAndParseDate } = require('./util');
@@ -13,11 +14,105 @@ const esovdb = require('./esovdb');
 
 const youtube = axios.create({ baseURL: 'https://youtube.googleapis.com/youtube/v3/' });
 
+/** @constant {RegExp} regexYTChannel - Regular expression to match a valid YouTube channel URL and extract its channelId. */
 const regexYTChannel = /^(?:https?:\/\/(?:www\.)?youtube\.com\/channel\/)?(UC[\w-]{21}[AQgw])(?:\/|\/videos)?$/;
+
+/** @constant {RegExp} regexYTPlaylist - Regular expression to match a valid YouTube playlist URL and extract its playlistId. */
 const regexYTPlaylist = /(?!.*\?.*\bv=)(?!rec)(?:youtu\.be\/|youtube\.com\/(?:playlist|list|embed|watch)(?:\.php)?(?:\?.*list=|\/)|)([\w\-]{12,})/;
+
+/** @constant {RegExp} regexData - Regular expression to match dates in any of the formats YYYY-mm-DD, YYYY-mm, or YYYY. */
 const regexDate = /^2[0-9]{3}(?:-[0-1][0-9](?:-[0-3][0-9])?)?$/;
 
+/** @constant {('any'|'short'|'medium'|'long')} videoLengths - Enum values accepted by the YouTube Data API for video duration in search queries */
 const videoLengths = [ 'any', 'short', 'medium', 'long' ];
+
+/**
+ *  Reads and returns a fresh copy of the channels database every time it is called
+ *
+ *  @function channelsDb
+ *  @returns {Object[]} channelsDb - Static snapshot of the channels database, an array of channel objects.
+ */
+
+const channelsDb = () => {
+  try {
+    const data = fs.readFileSync(process.env.CHANNELS_DB, 'utf8');
+    return data.trim() ? JSON.parse(data) : [];
+  } catch (err) {
+    console.error('[ERROR] Unable to read channels database:', err.message);
+    return [];
+  }
+}
+
+const channels = {
+  list: () => {
+    try {
+      return channelsDb();
+    } catch (err) {
+      console.error(`[ERROR] Unable to list watched YouTube channels:`, err.message);
+    }
+  },
+  
+  get: (channelId) => {
+    try {
+      const channel = channelsDb().find((channel) => channel.channelId === channelId);
+      if (!channel) throw new Error('Invalid channelId or channel does not exist in watch list.');
+      return channel;
+    } catch (err) {
+      console.error(`[ERROR] Unable to get watched YouTube channel "${channelId}":`, err);
+    }
+  },
+  
+  shift: () => {
+    try {
+      const existingChannels = channelsDb();
+      const channel = existingChannels.shift();
+      fs.writeFileSync(process.env.CHANNELS_DB, JSON.stringify(existingChannels));
+      console.log(`[DONE] Successfully shifted ESOVDB YouTube channel watch list and returned channel "${channel.channelId}".`);
+      return channel;
+    } catch (err) {
+      console.error('[ERROR] Unable to get shift ESOVDB YouTube channel watch list', err);
+    } 
+  },
+  
+  add: (channel) => {
+    try {                                                  
+      const existingChannels = channelsDb();
+      fs.writeFileSync(process.env.CHANNELS_DB, JSON.stringify([ ...existingChannels, channel ]));
+      console.log(`[DONE] Successfully added channel "${channel.channelId}" to end of watch list.`);
+      return channel;
+    } catch (err) {
+      console.error(`[ERROR] Unable to add YouTube channel "${channel.channelId}" to watch list:`, err);
+    }
+  },
+  
+  update: (channelId, fields) => {
+    try {
+      const existingChannels = channelsDb();
+      const channelIndex = existingChannels.findIndex((channel) => channel.channelId === channelId);
+      if (channelIndex < 0) throw new Error('Invalid channelId or channel does not exist in watch list.');
+      const updatedChannel = { ...existingChannels[channelIndex], ...fields };
+      existingChannels[channelIndex] = updatedChannel;
+      fs.writeFileSync(process.env.CHANNELS_DB, JSON.stringify(existingChannels));
+      console.log(`[DONE] Successfully updated channel "${channelId}" in watch list on fields "${Object.keys(fields).join(', ')}".`);
+      return updatedChannel;
+    } catch (err) {
+      console.error(`[ERROR] Unable to update YouTube channel "${channelId}" in watch list:`, err);
+    }
+  },
+  
+  delete: (channelId) => {
+    try {
+      const existingChannels = channelsDb();
+      const channelIndex = existingChannels.findIndex((channel) => channel.channelId === channelId);
+      if (channelIndex < 0) throw new Error('Invalid channelId or channel does not exist in watch list.');
+      const updatedChannels = existingChannels.filter((channel) => channel.channelId !== channelId);
+      fs.writeFileSync(process.env.CHANNELS_DB, JSON.stringify(updatedChannels));
+      console.log(`[DONE] Successfully deleted channel "${channel.channelId}" from watch list.`);
+    } catch (err) {
+      console.error(`[ERROR] Unable to delete YouTube channel "${channel.channelId}" from watch list:`, err);
+    }
+  }
+}
 
 const getChannelResultsPage = async (channelId, length = 'any', publishedAfter = null, nextPageToken = null) => {
   try {
@@ -218,11 +313,12 @@ module.exports = {
    *  Watches a YouTube channel for new video uploads to add to the ESOVDB
    *
    *  @method watchYouTubeChannel
-   *  @param {!express:Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
+   *  @param {express.Request} req - Express.js HTTP request context, an enhanced version of Node's http.IncomingMessage class
    *  @param {string} req.body.channel - The channel ID of the YouTube channel that should be watched
    *  @param {('any'|'long'|'medium'|'short')} [req.body.length='any'] - The length of the videos to watch, one of 'any' or 'long', 'medium', or 'short', with 'any' as the default
    *  @param {string} [req.body.publishedAfter] - The date after which the videos should be watched, in one of the formats 'YYYY-MM-DD', 'YYYY-MM', or 'YYYY'
-   *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class or Boolean false, by default, which allows the function to distinguish between external clients, which need to be sent an HTTPServerResponse object, and internal usage of the function, which need to return a value
+   *  @param {boolean} [req.body.deferProcessing=false] - Whether or not to postpone collection, processing, and addition of the channel's ({@link req.body.channel}) videos to the ESOVDB, or just add the channel to the watch list without performing those additional tasks
+   *  @param {express.Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class or Boolean false, by default, which allows the function to distinguish between external clients, which need to be sent an HTTPServerResponse object, and internal usage of the function, which need to return a value
    */
   watchYouTubeChannel: async (req, res) => {
     if (!req.body.channel || !regexYTChannel.test(req.body.channel)) return res.status(400).send('Invalid YouTube channel ID or URL.');
@@ -236,18 +332,22 @@ module.exports = {
       return res.status(400).send(error.message);
     }
 
-    const cachePath = `.cache${req.url}.json`;
-    const watchlist = cache.readCacheWithPath(cachePath) || [];
+    const deferProcessing = Boolean(req.body.deferProcessing);
+    const watchlist = channels.list() || [];
     if (watchlist.some((item) => item.channelId === channelId)) return res.status(409).send('Channel already in watch list');
 
     try {
-      console.log(`Adding YouTube channel ${channelId} to ESOVDB watchlist and checking for new videos…`);
-      const result = await processChannelVideos(channelId, length, publishedAfter);
-
-      watchlist.push({ channelId, length, created: Date.now(), lastChecked: result.status === 201 ? Date.now() : null });
-      cache.writeCacheWithPath(cachePath, watchlist)
-
-      return res.status(result.status).send(result.status === 201 ? result.data : result.status === 204 ? 'No videos found.' : JSON.stringify(result.error));
+      console.log(`Adding YouTube channel ${channelId} to ESOVDB watchlist ${deferProcessing ? 'without' : 'and'} checking for new videos…`);
+      
+      if (!deferProcessing) {
+        const result = await processChannelVideos(channelId, length, publishedAfter);
+        channels.add({ channelId, length, created: Date.now(), lastChecked: result.status === 201 ? Date.now() : null })
+        if (result.status === 204) return res.status(204).send('No videos found.');
+        return res.status(201).send(result.data);
+      } else {
+        channels.add({ channelId, length, created: Date.now(), lastChecked: null })
+        return res.status(201).send('Video collection deferred.');
+      }
     } catch (error) {
       console.error(`Error creating new watch list item for YouTube channel ${channelId}:`, error);
       return res.status(500).send(JSON.stringify(error));
@@ -255,23 +355,21 @@ module.exports = {
   },
 
   checkWatchedChannel: async() => {
-    const cachePath = `.cache/watch/youtube/channel.json`;
-    const watchlist = cache.readCacheWithPath(cachePath) || [];
+    const watchlist = channels.list() || [];
 
     if (watchlist.length === 0) {
       console.log('No channels found in watchlist—aborting hourly YouTube channel check.')
       return
     }
 
-    const channel = watchlist.shift();
+    const channel = channels.shift();
     const publishedAfter = channel.lastChecked ? new Date(channel.lastChecked) : null;
 
     try {
       console.log(`Checking videos from YouTube channel ${channel.channelId} (last updated: ${publishedAfter ? publishedAfter.toLocaleString() : 'never'})…`);
       const result = await processChannelVideos(channel.channelId, channel.length, publishedAfter);
       if (result.status === 201) channel.lastChecked = Date.now();
-      watchlist.push(channel);
-      cache.writeCacheWithPath(cachePath, watchlist);
+      channels.add(channel);
     } catch (error) {
       console.error(`Error processing new videos from YouTube channel ${channel.channelId}:`, error);
     }
