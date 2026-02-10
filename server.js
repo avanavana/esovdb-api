@@ -127,16 +127,16 @@ app.post('/:table/update', [ middleware.auth, middleware.validateReq, express.ur
 
 app.route('/zotero/:kind')
   .post([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-    console.log(`Performing zotero/${req.params.kind}/create API request...`);
+    console.log('Performing zotero/${req.params.kind}/create API request...');
     zotero.sync(req, res);
   })
   .put([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-    console.log(`Performing zotero/${req.params.kind}/update API request...`);
+    console.log('Performing zotero/${req.params.kind}/update API request...');
     zotero.sync(req, res);
   })
   .options(cors())
   .delete([ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-    console.log(`Performing zotero/${req.params.kind}/delete API request...`);
+    console.log('Performing zotero/${req.params.kind}/delete API request...');
     zotero.sync(req, res);
   });
 
@@ -147,7 +147,7 @@ app.route('/zotero/:kind')
  */
 
 app.post('/webhooks/discord', [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
-  console.log(`Performing webhooks/discord/userSubmission API request...`);
+  console.log('Performing webhooks/discord/userSubmission API request...');
   const response = await webhooks.execute(req.body, 'discord', 'userSubmission');
   if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.')
   res.status(200).send(response.config.data)
@@ -162,7 +162,7 @@ app.post('/webhooks/discord', [ middleware.auth, middleware.validateReq, express
 app.route('/webhooks/twitter')
   .all([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res, next) => { next(); })
   .post(async (req, res) => {
-    console.log(`Performing webhooks/twitter API request...`);
+    console.log('Performing webhooks/twitter API request...');
     const response = await webhooks.execute(req.body, 'twitter', '{event.type}');
     if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Twitter webhook event.')
     res.status(200).send(response.config.data)
@@ -179,20 +179,20 @@ app.route('/webhooks/twitter')
 
 app.route('/webhooks')
   .get([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-    console.log(`Performing webhooks/list API request...`);
+    console.log('Performing webhooks/list API request...');
     webhooks.list(req, res);
   })
   .post([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-    console.log(`Performing webhooks/create API request...`);
+    console.log('Performing webhooks/create API request...');
     webhooks.manage(req, res);
   })
   .put([ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-    console.log(`Performing webhooks/update API request...`);
+    console.log('Performing webhooks/update API request...');
     webhooks.manage(req, res);
   })
   .options(cors())
   .delete([ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-    console.log(`Performing webhooks/delete API request...`);
+    console.log('Performing webhooks/delete API request...');
     webhooks.manage(req, res);
   });
 
@@ -203,7 +203,7 @@ app.route('/webhooks')
  */
 
 app.post('/submissions/youtube/channel', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing submissions/youtube channel API request...`);
+  console.log('Performing submissions/youtube channel API request...');
   youtube.getChannelVideos(req, res);
 });
 
@@ -214,7 +214,7 @@ app.post('/submissions/youtube/channel', [ middleware.auth, middleware.validateR
  */
 
 app.post('/submissions/youtube/playlist', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing submissions/youtube playlist API request...`);
+  console.log('Performing submissions/youtube playlist API request...');
   youtube.getPlaylistVideos(req, res);
 });
 
@@ -225,7 +225,7 @@ app.post('/submissions/youtube/playlist', [ middleware.auth, middleware.validate
  */
 
 app.post('/submissions/youtube/video/:id', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing submissions/youtube single video API request...`);
+  console.log('Performing submissions/youtube single video API request...');
   esovdb.newVideoSubmission(req, res);
 });
 
@@ -267,7 +267,7 @@ app.get('/v1/submissions/youtube/video/:id?', [ middleware.validateReq, middlewa
  */
 
 app.post('/watch/youtube/channel', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log(`Performing watch/youtube channel API request...`);
+  console.log('Performing watch/youtube channel API request...');
   youtube.watchYouTubeChannel(req, res);
 });
 
@@ -290,10 +290,10 @@ app.get('/*', (req, res) => {
  */
 
 const listener = app.listen(3000, '0.0.0.0', () => {
-  monitor.ping({ state: 'ok', message: 'API server listen on port 3000.' });
+  monitor.ping({ state: 'ok', message: 'API server listening on port 3000.' });
   db.connect();
   cron.startJobs([ cron.getLatest, cron.checkNextYouTubeChannel ]);
-  console.log('API proxy listen on port ' + listener.address().port);
+  console.log('API server listening on port ' + listener.address().port);
 });
 
 /**
@@ -301,7 +301,9 @@ const listener = app.listen(3000, '0.0.0.0', () => {
  *  @requires util
  */
 
-appReady(() => { monitor.ping({ state: 'run', message: 'API Server (re)started.' }); });
+appReady(() => {
+  monitor.ping({ state: 'run', message: 'API server (re)started.' });
+});
 
 /**
  *  Instance of node-cleanup, for graceful shutdown of server.
