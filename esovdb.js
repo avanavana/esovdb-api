@@ -7,6 +7,7 @@
 
 const dotenv = require('dotenv').config();
 const Airtable = require('airtable');
+const axios = require('axios');
 const Bottleneck = require('bottleneck');
 const cache = require('./cache');
 const { formatDuration, formatDate, packageAuthors, sleep } = require('./util');
@@ -24,8 +25,58 @@ const tables = new Map([
   [ 'organizations', 'Organizations' ],
   [ 'people', 'People' ],
   [ 'submissions', 'Submissions' ],
-  [ 'issues', 'Issues ']
+  [ 'issues', 'Issues '],
+  [ 'sources', 'Watchlist' ]
 ]);
+
+/**
+ *  Dispatch the GitHub Actions watchlist runner via workflow_dispatch.
+ *  Requires repo secrets / env vars on the API server:
+ *  - GITHUB_TOKEN
+ *  - GITHUB_OWNER
+ *  - GITHUB_REPO
+ *  - GITHUB_WORKFLOW_ID (e.g. "watchlist.yml")
+ *  - GITHUB_REF (optional, default "main")
+ *
+ *  @function dispatchWatchlistRunner
+ *  @param {Object} inputs
+ *  @param {string=} inputs.watchlistRecordId Airtable record ID to check in this run
+ *  @returns {Promise<void>}
+ */
+
+const dispatchWatchlistRunner = async (inputs = {}) => {
+  const token = process.env.GITHUB_TOKEN;
+  const owner = process.env.GITHUB_OWNER;
+  const repo = process.env.GITHUB_REPO;
+  const workflowId = process.env.GITHUB_WORKFLOW_ID;
+  const ref = process.env.GITHUB_REF || 'main';
+
+  if (!token || !owner || !repo || !workflowId) {
+    throw new Error(
+      'Missing GitHub dispatch env vars. Required: GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GITHUB_WORKFLOW_ID'
+    );
+  }
+
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+    repo
+  )}/actions/workflows/${encodeURIComponent(workflowId)}/dispatches`;
+
+  const body = { ref, inputs };
+
+  const res = await axios.post(url, body, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    },
+    validateStatus: () => true
+  });
+
+  // GitHub returns 204 on success
+  if (res.status !== 204) {
+    throw new Error(`GitHub workflow dispatch failed (${res.status}): ${JSON.stringify(res.data)}`);
+  }
+};
 
 /** @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
 const airtableRateLimit = 1005 / 5;
@@ -854,6 +905,181 @@ module.exports = {
         }));
     } catch (err) {
       res.status(500).end(JSON.stringify(err));
+    }
+  },
+  
+  watchlist: {
+
+    /**
+     *  List watchlist records.
+     *  Default: returns only active records.
+     *
+     *  @method watchlist.list
+     *  @param {{ includeInactive?: boolean }=} opts
+     *  @returns {Promise<Object[]>} Airtable records
+     */
+    
+    list: async (opts = {}) => {
+      const table = base('Watchlist');
+      const includeInactive = opts && opts.includeInactive === true;
+      const filterByFormula = includeInactive ? undefined : `{Status}='Active'`;
+
+      const records = await table
+        .select({
+          filterByFormula,
+          sort: [{ field: 'Last Checked', direction: 'asc' }]
+        })
+        .all();
+
+      return records;
+    },
+
+    /**
+     *  Get a watchlist record by Airtable record ID.
+     *
+     *  @method watchlist.getByRecordId
+     *  @param {string} recordId
+     *  @returns {Promise<Object>}
+     */
+    
+    getByRecordId: async (recordId) => {
+      const table = base('Watchlist');
+      const record = await table.find(recordId);
+      if (!record) throw new Error(`Watchlist record not found: ${recordId}`);
+      return record;
+    },
+
+    /**
+     *  Get a watchlist record by source ID (Watchlist.ID), optionally constrained to Type.
+     *
+     *  @method watchlist.getBySourceId
+     *  @param {string} sourceId
+     *  @param {('Channel'|'Playlist')=} type
+     *  @returns {Promise<Object>}
+     */
+    
+    getBySourceId: async (sourceId, type) => {
+      const table = base('Watchlist');
+      const filterByFormula = type ? `AND({ID}='${sourceId}',{Type}='${type}')` : `{ID}='${sourceId}'`;
+      const records = await table.select({ filterByFormula, maxRecords: 1 }).firstPage();
+      const record = records && records.length ? records[0] : null;
+      if (!record) throw new Error(`Watchlist item not found for ID=${sourceId}${type ? ` Type=${type}` : ''}`);
+      return record;
+    },
+
+    /**
+     *  Pick next record to check: Active + non-empty ID, oldest Last Checked first.
+     *  This is the replacement for your old JSON "shift()", but without mutating a list.
+     *
+     *  @method watchlist.pickNext
+     *  @returns {Promise<Object|null>}
+     */
+    
+    pickNext: async () => {
+      const table = base('Watchlist');
+      const filterByFormula = `AND({Status}='Active',{ID}!='')`;
+
+      const records = await table
+        .select({
+          filterByFormula,
+          maxRecords: 1,
+          sort: [{ field: 'Last Checked', direction: 'asc' }]
+        })
+        .firstPage();
+
+      return records && records.length ? records[0] : null;
+    },
+
+    /**
+     *  Add a watchlist record.
+     *  By default triggers the GitHub Actions runner and requests it check this record in that run.
+     *
+     *  @method watchlist.add
+     *  @param {{
+     *    Name?: string,
+     *    Status?: ('Active'|'Inactive'),
+     *    Type: ('Channel'|'Playlist'),
+     *    ID: string,
+     *    Duration?: ('any'|'short'|'medium'|'long'),
+     *    'Published After'?: (string|null),
+     *    'Last Checked'?: (string|null),
+     *    'Last Checked Notes'?: string
+     *  }} fields
+     *  @param {{ deferProcessing?: boolean }=} opts
+     *  @returns {Promise<Object>} created Airtable record
+     */
+    
+    add: async (fields, opts = {}) => {
+      const table = base('Watchlist');
+
+      const payload = {
+        Name: fields.Name,
+        Status: fields.Status || 'Active',
+        Type: fields.Type,
+        ID: fields.ID,
+        Duration: fields.Duration,
+        'Published After': fields['Published After'] || undefined,
+        'Last Checked': fields['Last Checked'] || undefined,
+        'Last Checked Notes': fields['Last Checked Notes']
+      };
+
+      const created = await table.create(payload);
+      if (!opts.deferProcessing) await dispatchWatchlistRunner({ watchlistRecordId: created.id });
+      return created;
+    },
+
+    /**
+     *  Update a watchlist record.
+     *  By default does NOT trigger the runner.
+     *
+     *  @method watchlist.update
+     *  @param {{ recordId: string } | { sourceId: string, type?: ('Channel'|'Playlist') }} identifier
+     *  @param {Object} fields
+     *  @param {{ checkUpdatedItem?: boolean }=} opts
+     *  @returns {Promise<Object>} updated Airtable record
+     */
+    
+    update: async (identifier, fields, opts = {}) => {
+      const table = base('Watchlist');
+
+      let recordId = null;
+      
+      if (identifier && identifier.recordId) {
+        recordId = identifier.recordId;
+      } else if (identifier && identifier.sourceId) {
+        const found = await this.getBySourceId(identifier.sourceId, identifier.type);
+        recordId = found.id;
+      } else {
+        throw new Error('Invalid identifier. Provide {recordId} or {sourceId[, type]}.');
+      }
+
+      const updated = await table.update(recordId, fields);
+      if (opts.checkUpdatedItem) await dispatchWatchlistRunner({ watchlistRecordId: updated.id });
+      return updated;
+    },
+
+    /**
+     *  Delete a watchlist record.
+     *
+     *  @method watchlist.remove
+     *  @param {{ recordId: string } | { sourceId: string, type?: ('Channel'|'Playlist') }} identifier
+     *  @returns {Promise<void>}
+     */
+    
+    remove: async (identifier) => {
+      const table = base('Watchlist');
+
+      let recordId = null;
+      if (identifier && identifier.recordId) {
+        recordId = identifier.recordId;
+      } else if (identifier && identifier.sourceId) {
+        const found = await this.getBySourceId(identifier.sourceId, identifier.type);
+        recordId = found.id;
+      } else {
+        throw new Error('Invalid identifier. Provide {recordId} or {sourceId[, type]}.');
+      }
+
+      await table.destroy(recordId);
     }
   }
 };

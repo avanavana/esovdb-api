@@ -10,7 +10,6 @@ const cleanUp = require('node-cleanup');
 const cors = require('cors');
 const { db, monitor } = require('./batch');
 const { appReady, patternsToRegEx } = require('./util');
-const cron = require('./cron');
 const esovdb = require('./esovdb');
 const webhooks = require('./webhooks');
 const youtube = require('./youtube');
@@ -260,16 +259,125 @@ app.get('/v1/submissions/youtube/video/:id?', [ middleware.validateReq, middlewa
 });
 
 /**
- *  API endpoint that sets up a cron job watching a YouTube channel's videos to add to the ESOVDB
- *  @requires cron
- *  @callback - cron.startJobs
- *  @callback - cron.watchYouTubeChannel
+ *  Combined API endpoints for managing the ESOVDB watchlist
+ *  @requires esovdb
+ *  @callback esovdb.watchlist.list, esovdb.watchlist.add, esovdb.watchlist.update, esovdb.watchlist.remove
  */
 
-app.post('/watch/youtube/channel', [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ], (req, res) => {
-  console.log('Performing watch/youtube channel API request...');
-  youtube.watchYouTubeChannel(req, res);
-});
+app.route('/watch')
+  .get(
+    [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ],
+    async (req, res) => {
+      console.log('Performing watch/list API request...');
+
+      try {
+        const includeInactive = req.query && typeof req.query.includeInactive !== 'undefined' && String(req.query.includeInactive).toLowerCase() === 'true';
+        const records = await esovdb.watchlist.list({ includeInactive });
+        res.status(200).send(records);
+      } catch (err) {
+        console.error('[ERROR] watch/list:', err);
+        res.status(500).send(String(err && err.message ? err.message : err));
+      }
+    }
+  )
+  .post(
+    [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ],
+    async (req, res) => {
+      console.log('Performing watch/add API request...');
+      
+      try {
+        const body = req.body || {};
+        const deferProcessing = Boolean(body.deferProcessing);
+        const fields = Object.assign({}, body);
+        delete fields.deferProcessing;
+
+        if (!fields.Type || !fields.ID) {
+          return res
+            .status(400)
+            .send('Missing required fields. Expected at least: { Type: "Channel|Playlist", ID: "<sourceId>" }');
+        }
+
+        const created = await esovdb.watchlist.add(fields, { deferProcessing });
+        res.status(201).send(created);
+      } catch (err) {
+        console.error('[ERROR] watch/add:', err);
+        res.status(500).send(String(err && err.message ? err.message : err));
+      }
+    }
+  )
+  .patch(
+    [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ],
+    async (req, res) => {
+      console.log('Performing watch/update API request...');
+      
+      try {
+        const body = req.body || {};
+        const sourceId = body.sourceId;
+        const checkUpdatedItem = Boolean(body.checkUpdatedItem);
+
+        if (!sourceId) return res.status(400).send('Missing required field "sourceId" in request body.');
+
+        const fields = Object.assign({}, body);
+        delete fields.sourceId;
+        delete fields.checkUpdatedItem;
+
+        const updated = await esovdb.watchlist.update(
+          { sourceId: sourceId },
+          fields,
+          { checkUpdatedItem: checkUpdatedItem }
+        );
+
+        res.status(200).send(updated);
+      } catch (err) {
+        console.error('[ERROR] watch/update:', err);
+        res.status(500).send(String(err && err.message ? err.message : err));
+      }
+    }
+  )
+  .options(cors())
+  .delete(
+    [ middleware.auth, middleware.validateReq, cors(), express.urlencoded({ extended: true }), express.json() ],
+    async (req, res) => {
+      console.log('Performing watch/delete API request...');
+      
+      try {
+        const body = req.body || {};
+        const sourceId = body.sourceId;
+
+        if (!sourceId) return res.status(400).send('Missing required field "sourceId" in request body.');
+
+        await esovdb.watchlist.remove({ sourceId: sourceId });
+        res.status(204).end();
+      } catch (err) {
+        console.error('[ERROR] watch/delete:', err);
+        res.status(500).send(String(err && err.message ? err.message : err));
+      }
+    }
+  );
+
+/**
+ *  API endpoint for retrieving a single watchlist item from the ESOVDB
+ *  @requires esovdb
+ *  @callback esovdb.watchlist.getBySourceId
+ */
+
+app.route('/watch/:sourceId')
+  .get(
+    [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ],
+    async (req, res) => {
+      console.log('Performing watch/get API request...');
+      
+      try {
+        const sourceId = req.params.sourceId;
+        const record = await esovdb.watchlist.getBySourceId(sourceId);
+        res.status(200).send(record);
+      } catch (err) {
+        console.error('[ERROR] watch/get:', err);
+        res.status(404).send(String(err && err.message ? err.message : err));
+      }
+    }
+  )
+  .options(cors());
 
 /**
  *  API endpoint which is the end of all other endpoints
@@ -292,7 +400,6 @@ app.get('/*', (req, res) => {
 const listener = app.listen(3000, '0.0.0.0', () => {
   monitor.ping({ state: 'ok', message: 'API server listening on port 3000.' });
   db.connect();
-  cron.startTasks([ cron.getLatest, cron.checkNextYouTubeChannel ]);
   console.log('API server listening on port ' + listener.address().port);
 });
 
@@ -312,6 +419,5 @@ appReady(() => {
 
 cleanUp((code, signal) => {
   db.quit();
-  cron.stopTasks();
   monitor.ping({ status: 'complete', message: 'API server shut down.' })
 });
