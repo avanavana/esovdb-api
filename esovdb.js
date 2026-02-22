@@ -1039,7 +1039,7 @@ module.exports = {
      *  @returns {Promise<Object>} updated Airtable record
      */
     
-    update: async (identifier, fields, opts = {}) => {
+    update: async function(identifier, fields, opts = {}) {
       const table = base('Watchlist');
 
       let recordId = null;
@@ -1066,7 +1066,7 @@ module.exports = {
      *  @returns {Promise<void>}
      */
     
-    remove: async (identifier) => {
+    remove: async function(identifier) {
       const table = base('Watchlist');
 
       let recordId = null;
