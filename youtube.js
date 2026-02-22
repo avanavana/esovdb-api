@@ -300,7 +300,7 @@ const processChannelVideos = async (channelId, length, publishedAfter) => {
       }
     }));
 
-    const data = esovdb.processAdditions(itemsToAdd, 'Submissions');
+    const data = await esovdb.processAdditions(itemsToAdd, 'Submissions');
     return { status: 201, data: { ...data, channel: videos[0].channel, channelId: videos[0].channelId }}
   } catch (error) {
     console.error(`Error processing videos from YouTube channel ${channelId}:`, error)

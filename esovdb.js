@@ -635,12 +635,46 @@ module.exports = {
     return items;
   },
 
-  processAdditions: (items, table) => {
+//   processAdditions: (items, table) => {
+//     let i = 0, additions = [ ...items ], queue = items.length, results = [];
+
+//     while (additions.length) {
+//       const batch = additions.splice(0, 10);
+      
+//       console.log(
+//         `Creating record${batch.length === 1 ? '' : 's'} ${
+//           i * 10 + 1
+//         }${batch.length > 1 ? '-' : ''}${
+//           batch.length > 1
+//             ? i * 10 +
+//               (batch.length < 10
+//                 ? batch.length
+//                 : 10)
+//             : ''
+//         } of ${queue} total in table "${table}"...`
+//       );
+
+//       i++;
+//       rateLimiter.wrap(
+//         base(table).create(batch, function(err, data) {
+//           if (err) throw new Error(err); 
+//           console.log('Successfully created batch.');
+//           console.log(data); // TODO: remove
+//           results.push(...data);
+//         }));
+//     }
+    
+//     console.log(`Successfully created ${results.length > 1 ? results.length + ' new records' : '1 new record'} in table "${table}" on ESOVDB.`);
+//     console.log(results); // TODO: remove
+//     return results;
+//   },
+  
+  processAdditions: async (items, table) => {
     let i = 0, additions = [ ...items ], queue = items.length, results = [];
 
     while (additions.length) {
       const batch = additions.splice(0, 10);
-      
+
       console.log(
         `Creating record${batch.length === 1 ? '' : 's'} ${
           i * 10 + 1
@@ -655,17 +689,13 @@ module.exports = {
       );
 
       i++;
-      rateLimiter.wrap(
-        base(table).create(batch, function(err, data) {
-          if (err) throw new Error(err); 
-          console.log('Successfully created batch.');
-          console.log(data); // TODO: remove
-          results.push(...data.records);
-        }));
+
+      const created = await rateLimiter.wrap(base(table).create(batch));
+      const createdArray = Array.isArray(created) ? created : [ created ];
+      for (let j = 0; j < createdArray.length; j++) results.push(createdArray[j]);
     }
-    
+
     console.log(`Successfully created ${results.length > 1 ? results.length + ' new records' : '1 new record'} in table "${table}" on ESOVDB.`);
-    console.log(results); // TODO: remove
     return results;
   },
   

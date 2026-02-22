@@ -292,7 +292,7 @@ app.get('/*', (req, res) => {
 const listener = app.listen(3000, '0.0.0.0', () => {
   monitor.ping({ state: 'ok', message: 'API server listening on port 3000.' });
   db.connect();
-  cron.startJobs([ cron.getLatest, cron.checkNextYouTubeChannel ]);
+  cron.startTasks([ cron.getLatest, cron.checkNextYouTubeChannel ]);
   console.log('API server listening on port ' + listener.address().port);
 });
 
@@ -312,6 +312,6 @@ appReady(() => {
 
 cleanUp((code, signal) => {
   db.quit();
-  cron.stopJobs();
+  cron.stopTasks();
   monitor.ping({ status: 'complete', message: 'API server shut down.' })
 });
