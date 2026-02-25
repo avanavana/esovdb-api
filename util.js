@@ -4,6 +4,12 @@
  *  @module util
  */
 
+/** @constant {RegExp} regexYTChannelId - Regular expression for matching a YouTube channel ID */
+const regexYTChannelId = /^UC[\w-]{21}[AQgw]$/;
+
+/** @constant {RegExp} regexYTPlaylistId - Regular expression for matching a YouTube playlist ID */
+const regexYTPlaylistId = /^PL[\w-]+$/;
+
 module.exports = {
   
   /**
@@ -377,6 +383,38 @@ module.exports = {
     const fullDate = parts[0] + (parts[1] ? `-${parts[1]}` : '-01') + (parts[2] ? `-${parts[2]}` : '-01');
       
     return new Date(Date.parse(fullDate));
+  },
+  
+  inferWatchlistTypeFromId: (id) => {
+    if (regexYTChannelId.test(id)) return 'Channel';
+    if (regexYTPlaylistId.test(id)) return 'Playlist';
+    throw new Error(`Invalid YouTube ID "${id}".`);
+  },
+  
+  normalizePublishedAfter: (input) => {
+    if (!input) return undefined;
+    const value = String(input).trim();
+
+    if (/^\d{4}$/.test(value)) return `${value}-01-01T00:00:00.000Z`;
+
+    if (/^\d{4}-\d{2}$/.test(value)) {
+      const [ y, m ] = value.split('-').map(Number);
+      if (m < 1 || m > 12) throw new Error(`Invalid publishedAfter month: "${value}"`);
+      return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-01T00:00:00.000Z`;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [y, m, d] = value.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+
+      if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) {
+        throw new Error(`Invalid publishedAfter date: "${value}"`);
+      }
+      
+      return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T00:00:00.000Z`;
+    }
+
+    throw new Error(`Invalid publishedAfter "${value}". Expected YYYY, YYYY-MM, or YYYY-MM-DD.`);
   }
   
 }

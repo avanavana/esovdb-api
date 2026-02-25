@@ -10,7 +10,14 @@ const Airtable = require('airtable');
 const axios = require('axios');
 const Bottleneck = require('bottleneck');
 const cache = require('./cache');
-const { formatDuration, formatDate, packageAuthors, sleep } = require('./util');
+const {
+  formatDuration,
+  formatDate,
+  packageAuthors,
+  sleep,
+  normalizePublishedAfter,
+  inferWatchlistTypeFromId
+} = require('./util');
 
 const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
@@ -52,9 +59,7 @@ const dispatchWatchlistRunner = async (inputs = {}) => {
   const ref = process.env.GITHUB_REF || 'main';
 
   if (!token || !owner || !repo || !workflowId) {
-    throw new Error(
-      'Missing GitHub dispatch env vars. Required: GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GITHUB_WORKFLOW_ID'
-    );
+    throw new Error('Missing GitHub dispatch env vars. Required: GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GITHUB_WORKFLOW_ID');
   }
 
   const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
@@ -72,11 +77,29 @@ const dispatchWatchlistRunner = async (inputs = {}) => {
     validateStatus: () => true
   });
 
-  // GitHub returns 204 on success
-  if (res.status !== 204) {
-    throw new Error(`GitHub workflow dispatch failed (${res.status}): ${JSON.stringify(res.data)}`);
-  }
+  if (res.status !== 204) throw new Error(`GitHub workflow dispatch failed (${res.status}): ${JSON.stringify(res.data)}`);
 };
+
+const fetchYouTubeChannelName = async (channelId) => {
+  const params = new URLSearchParams({
+    part: 'snippet',
+    id: channelId,
+    maxResults: '1',
+    key: process.env.YOUTUBE_API_KEY
+  });
+
+  const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?${params.toString()}`);
+  
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Failed to fetch channel "${channelId}" title from YouTube API (${response.status}): ${text}`);
+  }
+
+  const data = await response.json();
+  const title = data && Array.isArray(data.items) && data.items.length > 0 && data.items[0].snippet && data.items[0].snippet.title;
+  if (!title) throw new Error(`No channel title returned for channel "${channelId}".`);
+  return title;
+}
 
 /** @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
 const airtableRateLimit = 1005 / 5;
@@ -911,7 +934,7 @@ module.exports = {
   watchlist: {
 
     /**
-     *  List watchlist records.
+     *  Lists ESOVDB watchlist records.
      *  Default: returns only active records.
      *
      *  @method watchlist.list
@@ -935,7 +958,7 @@ module.exports = {
     },
 
     /**
-     *  Get a watchlist record by Airtable record ID.
+     *  Gets an ESOVDB watchlist record by Airtable record ID.
      *
      *  @method watchlist.getByRecordId
      *  @param {string} recordId
@@ -950,7 +973,7 @@ module.exports = {
     },
 
     /**
-     *  Get a watchlist record by source ID (Watchlist.ID), optionally constrained to Type.
+     *  Gets an ESOVDB watchlist record by source ID (Watchlist.ID), optionally constrained to Type.
      *
      *  @method watchlist.getBySourceId
      *  @param {string} sourceId
@@ -968,7 +991,7 @@ module.exports = {
     },
 
     /**
-     *  Pick next record to check: Active + non-empty ID, oldest Last Checked first.
+     *  Pick next ESOVDB watchlist record to check: Active + non-empty ID, oldest Last Checked first.
      *  This is the replacement for your old JSON "shift()", but without mutating a list.
      *
      *  @method watchlist.pickNext
@@ -991,75 +1014,126 @@ module.exports = {
     },
 
     /**
-     *  Add a watchlist record.
-     *  By default triggers the GitHub Actions runner and requests it check this record in that run.
+     *  Adds a YouTube source to the ESOVDB Watchlist.
+     *
+     *  Accepts the iOS Shortcut / watch endpoint payload shape (channel/playlist ID + optional metadata),
+     *  infers Airtable fields, creates the record as Active, and optionally triggers the GitHub Actions
+     *  watchlist runner to process that specific record immediately.
+     *
+     *  Behavior:
+     *  - `Status` is always set to `"Active"` on create
+     *  - `Type` is inferred from the ID:
+     *    - Channel IDs match `UC[\w-]{21}[AQgw]` => `"Channel"`
+     *    - Playlist IDs starting with `PL` => `"Playlist"`
+     *  - `publishedAfter` accepts `YYYY`, `YYYY-MM`, or `YYYY-MM-DD` and is normalized to ISO UTC midnight
+     *  - If `name` is missing for a channel ID, the method fetches the channel title from the YouTube Data API
+     *    using `process.env.YOUTUBE_API_KEY`
      *
      *  @method watchlist.add
      *  @param {{
-     *    Name?: string,
-     *    Status?: ('Active'|'Inactive'),
-     *    Type: ('Channel'|'Playlist'),
-     *    ID: string,
-     *    Duration?: ('any'|'short'|'medium'|'long'),
-     *    'Published After'?: (string|null),
-     *    'Last Checked'?: (string|null),
-     *    'Last Checked Notes'?: string
-     *  }} fields
-     *  @param {{ deferProcessing?: boolean }=} opts
+     *    channel: string, // YouTube channel ID (UC...) or playlist ID (PL...)
+     *    name?: string, // channel/playlist title
+     *    length?: ('any'|'short'|'medium'|'long'),
+     *    publishedAfter?: string, // YYYY | YYYY-MM | YYYY-MM-DD
+     *    deferProcessing?: boolean
+     *  }} input
+     *  @param {{ deferProcessing?: boolean }=} opts - Optional override for `deferProcessing` (input value wins if provided).
      *  @returns {Promise<Object>} created Airtable record
+     *  @throws {Error} when ID is invalid, name cannot be resolved, publishedAfter is invalid, or Airtable / GitHub dispatch fails
      */
-    
-    add: async (fields, opts = {}) => {
+    add: async (input, opts = {}) => {
       const table = base('Watchlist');
 
+      const sourceId = String(input.channel || '').trim();
+      if (!sourceId) throw new Error('Missing required field "channel".');
+
+      const type = inferWatchlistTypeFromId(sourceId);
+      
+      let deferProcessing;
+      
+      if (Object.prototype.hasOwnProperty.call(input, 'deferProcessing')) {
+        deferProcessing = !!input.deferProcessing;
+      } else if (Object.prototype.hasOwnProperty.call(opts, 'deferProcessing')) {
+        deferProcessing = !!opts.deferProcessing;
+      } else {
+        deferProcessing = false;
+      }
+
+      let name = typeof input.name === 'string' ? input.name.trim() : '';
+      
+      if (!name) {
+        if (type === 'Channel') {
+          name = await fetchYouTubeChannelName(sourceId);
+        } else {
+          throw new Error('Missing required field "name" for playlist watchlist item.');
+        }
+      }
+      
+      const publishedAfter = normalizePublishedAfter(input.publishedAfter);
+      
+      console.log(`› channel=${sourceId}, name=${name}, type=${type}, length=${input.length || 'any'}, publishedAfter=${publishedAfter}, deferProcessing=${String(deferProcessing)}`);
+
       const payload = {
-        Name: fields.Name,
-        Status: fields.Status || 'Active',
-        Type: fields.Type,
-        ID: fields.ID,
-        Duration: fields.Duration,
-        'Published After': fields['Published After'] || undefined,
-        'Last Checked': fields['Last Checked'] || undefined,
-        'Last Checked Notes': fields['Last Checked Notes']
+        'Name': name,
+        'Status': 'Active',
+        'Type': type,
+        'ID': sourceId,
+        'Duration': input.length || 'any',
+        'Published After': publishedAfter
       };
 
       const created = await table.create(payload);
-      if (!opts.deferProcessing) await dispatchWatchlistRunner({ watchlistRecordId: created.id });
+      console.log(`[DONE] Created watchlist source ${created.id} with Name=${payload.Name}, Status=${payload.Status}, Type=${payload.Type}, ID=${payload.ID}, Duration=${payload.Duration}, Published After=${payload['Published After']}`);
+      
+      if (!deferProcessing) await dispatchWatchlistRunner({ watchlistRecordId: created.id });
       return created;
     },
 
     /**
-     *  Update a watchlist record.
-     *  By default does NOT trigger the runner.
+     *  Updates a watchlist record in the ESOVDB watchlist
+     *
+     *  By default this does NOT trigger the watchlist runner. Set `opts.checkUpdatedItem = true`
+     *  to dispatch the GitHub Actions runner and request an immediate check of the updated record.
+     *
+     *  Identifier behavior:
+     *  - `{ recordId }` updates directly by Airtable record ID
+     *  - `{ sourceId }` looks up the Watchlist record by source ID and inferred type
+     *  - `{ sourceId, type }` looks up by explicit type (overrides inferred type)
+     *
+     *  `sourceId` type inference uses `inferWatchlistTypeFromId(sourceId)`:
+     *  - `UC...` => `"Channel"`
+     *  - `PL...` => `"Playlist"`
      *
      *  @method watchlist.update
-     *  @param {{ recordId: string } | { sourceId: string, type?: ('Channel'|'Playlist') }} identifier
-     *  @param {Object} fields
-     *  @param {{ checkUpdatedItem?: boolean }=} opts
+     *  @param {{ recordId: string } | { sourceId: string, type?: ('Channel'|'Playlist') }} identifier - Airtable record selector. When using `sourceId`, `type` is optional and will be inferred if omitted
+     *  @param {Object} fields - Partial Airtable Watchlist fields to update
+     *  @param {{ checkUpdatedItem?: boolean }=} opts - If true, dispatches the watchlist runner to process the updated record immediately
      *  @returns {Promise<Object>} updated Airtable record
+     *  @throws {Error} when identifier is invalid, source record is not found, or Airtable / GitHub dispatch fails
      */
     
     update: async function(identifier, fields, opts = {}) {
       const table = base('Watchlist');
-
       let recordId = null;
       
       if (identifier && identifier.recordId) {
         recordId = identifier.recordId;
       } else if (identifier && identifier.sourceId) {
-        const found = await this.getBySourceId(identifier.sourceId, identifier.type);
+        const resolvedType = identifier.type || inferWatchlistTypeFromId(identifier.sourceId);
+        const found = await this.getBySourceId(identifier.sourceId, resolvedType);
         recordId = found.id;
       } else {
         throw new Error('Invalid identifier. Provide {recordId} or {sourceId[, type]}.');
       }
-
+      
+      if (!fields || typeof fields !== 'object') throw new Error('Invalid fields object.');
       const updated = await table.update(recordId, fields);
       if (opts.checkUpdatedItem) await dispatchWatchlistRunner({ watchlistRecordId: updated.id });
       return updated;
     },
 
     /**
-     *  Delete a watchlist record.
+     *  Deletes a watchlist record from the ESOVDB watchlist
      *
      *  @method watchlist.remove
      *  @param {{ recordId: string } | { sourceId: string, type?: ('Channel'|'Playlist') }} identifier

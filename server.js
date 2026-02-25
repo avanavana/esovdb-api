@@ -287,17 +287,7 @@ app.route('/watch')
       
       try {
         const body = req.body || {};
-        const deferProcessing = Boolean(body.deferProcessing);
-        const fields = Object.assign({}, body);
-        delete fields.deferProcessing;
-
-        if (!fields.Type || !fields.ID) {
-          return res
-            .status(400)
-            .send('Missing required fields. Expected at least: { Type: "Channel|Playlist", ID: "<sourceId>" }');
-        }
-
-        const created = await esovdb.watchlist.add(fields, { deferProcessing });
+        const created = await esovdb.watchlist.add(body);
         res.status(201).send(created);
       } catch (err) {
         console.error('[ERROR] watch/add:', err);
