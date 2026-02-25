@@ -8,7 +8,7 @@ const dotenv = require('dotenv').config();
 const axios = require('axios');
 const fs = require('fs');
 const WebHooks = require('node-webhooks');
-const { getOp, truncate, stringifyCreators, queueAsync } = require('./util');
+const { formatDateNice, getOp, truncate, stringifyCreators, queueAsync } = require('./util');
 
 /** @constant {WebHooks} webHooks - Class with add/remove/trigger actions and access to JSON file-based, encrypted database of webhook consumers from [node-webhooks]{@link https://github.com/roccomuso/node-webhooks} */
 const webhooks = new WebHooks({ db: process.env.WEBHOOKS_DB });
@@ -316,7 +316,7 @@ const watchlistRunToDiscord = (payload) => {
       fields: []
     });
     
-    if (sampleVideoDate) draft.embeds[0].fields.push({ name: 'Published on', value: sampleVideoDate, inline: false });
+    if (sampleVideoDate) draft.embeds[0].fields.push({ name: 'Published on', value: formatDateNice(sampleVideoDate, { utc: true }), inline: false });
     if (additional > 0) draft.embeds[0].footer = { text: `…and ${additional} additional video submission${additionalPlural}.` };
   }
 

@@ -166,6 +166,38 @@ module.exports = {
   },
   
   /**
+   *  Format an ISO date string into a human-friendly string like: "Jan 1, 2026 at 2:00pm"
+   *
+   *  @param {string} iso
+   *  @param {{ utc?: boolean }=} opts
+   *  @returns {string}
+   */
+  
+  formatDateNice: (iso, opts) => {
+    const d = new Date(iso);
+    const useUTC = !!(opts && opts.utc);
+
+    if (!iso || isNaN(d.getTime())) return String(iso || '');
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const year = useUTC ? d.getUTCFullYear() : d.getFullYear();
+    const month = useUTC ? d.getUTCMonth() : d.getMonth();
+    const day = useUTC ? d.getUTCDate() : d.getDate();
+
+    let hour = useUTC ? d.getUTCHours() : d.getHours();
+    const minute = useUTC ? d.getUTCMinutes() : d.getMinutes();
+
+    const suffix = hour >= 12 ? 'pm' : 'am';
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+
+    const mm = String(minute).padStart(2, '0');
+
+    return months[month] + ' ' + day + ', ' + year + ' at ' + hour + ':' + mm + suffix;
+  },
+  
+  /**
    *  Takes dates formatted by Airtable and converts them to timestamps in order to compare them and sort in ascending (default) or descending order, meant to be passed to Array.sort()
    * 
    *  @method sortDates
