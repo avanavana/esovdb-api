@@ -140,6 +140,19 @@ app.route('/zotero/:kind')
   });
 
 /**
+ *  API POST endpoint for broadcasting batches of new submissions from the ESOVDB YouTube Watchlist Github Actions Workflow
+ *  @requires webhooks
+ *  @callback webhooks.execute
+ */
+
+app.post('/webhooks/discord/watchlist-submission-total', [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
+  console.log('Performing webhooks/discord/newWatchlistSubmissionTotal API request...');
+  const response = await webhooks.execute(req.body, 'discord', 'newWatchlistSubmissionTotal');
+  if (!response || response.status >= 400) throw new Error('[ERROR] Unable to send Discord watchlist submission total webhook.');
+  res.status(200).send(response.config && response.config.data ? response.config.data : 'OK');
+});
+
+/**
  *  API POST endpoint for handling new submissions from the ESOVDB Discord #submissions channel
  *  @requires webhooks
  *  @callback webhooks.execute
@@ -148,8 +161,8 @@ app.route('/zotero/:kind')
 app.post('/webhooks/discord', [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ], async (req, res) => {
   console.log('Performing webhooks/discord/userSubmission API request...');
   const response = await webhooks.execute(req.body, 'discord', 'userSubmission');
-  if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.')
-  res.status(200).send(response.config.data)
+  if (!response || response.status >= 400) throw new Error('[ERROR] Unable to respond to Discord user submission.');
+  res.status(200).send(response.config && response.config.data ? response.config.data : 'OK');
 });
 
 /**
@@ -163,8 +176,8 @@ app.route('/webhooks/twitter')
   .post(async (req, res) => {
     console.log('Performing webhooks/twitter API request...');
     const response = await webhooks.execute(req.body, 'twitter', '{event.type}');
-    if (response.status >= 400) throw new Error('[ERROR] Unable to respond to Twitter webhook event.')
-    res.status(200).send(response.config.data)
+    if (!response || response.status >= 400) throw new Error('[ERROR] Unable to respond to Twitter webhook event.');
+    res.status(200).send(response.config && response.config.data ? response.config.data : 'OK');
   })
   .get((req, res) => {
     res.status(200).send('OK (Placeholder)');

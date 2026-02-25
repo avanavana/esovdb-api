@@ -62,7 +62,8 @@ const sources = new Map([
             endpoints: {
                 newSubmission: process.env.WEBHOOK_DISCORD_NEWSUBMISSION,
                 newSubmissionTotal: process.env.WEBHOOK_DISCORD_NEWSUBMISSIONTOTAL,
-                userSubmission: process.env.WEBHOOK_DISCORD_USERSUBMISSION
+                userSubmission: process.env.WEBHOOK_DISCORD_USERSUBMISSION,
+                newWatchlistSubmissionTotal: process.env.WEBHOOK_DISCORD_NEWWATCHLISTSUBMISSIONTOTAL
             }
         }
     ]
@@ -250,6 +251,91 @@ const itemToDiscord = (text, item) => {
 }
 
 /**
+ *  (Re-)formats a watchlist runner result payload into a webhook-friendly Discord message announcing the total number of new submissions created from a watched YouTube source.
+ *  Supports both Channel and Playlist watchlist sources. The source URL is derived from `watchlistType` + `sourceId`. If `sampleVideo` is provided, the first embed features that video (title, link, thumbnail), followed by a second embed for the watchlist source.
+ *
+ *  @function watchlistRunToDiscord
+ *  @param {{
+ *    watchlistRecordId: string,
+ *    watchlistType: ('Channel'|'Playlist'),
+ *    createdSubmissions: number,
+ *    apiReturnedVideos: number,
+ *    sourceTitle?: string,
+ *    sourceId: string,
+ *    sampleVideo?: {
+ *      id: string,
+ *      title?: string,
+ *      channel?: string,
+ *      channelId?: string,
+ *      date?: string
+ *    },
+ *    checkedAtIso: string
+ *  }} payload - Data posted by the ESOVDB Watchlist Runner after a successful run that created one or more Airtable Submission records.
+ *  @returns {Object} a properly-formatted Discord webhook message payload with `content` and one or more `embeds`
+ *  @see {@link https://discord.com/developers/docs/resources/webhook#execute-webhook}
+ */
+
+const watchlistRunToDiscord = (payload) => {
+  const count = Number(payload.createdSubmissions) || 0;
+  const plural = count === 1 ? '' : 's';
+  const additional = Math.max(count - 1, 0);
+  const additionalPlural = additional === 1 ? '' : 's';
+
+  const sourceType = payload.watchlistType || 'Channel';
+  const sourceId = payload.sourceId || '';
+  const sourceTitle = payload.sourceTitle || (sourceType === 'Playlist' ? 'YouTube Playlist' : 'YouTube Channel');
+
+  let sourceUrl = '';
+  
+  if (sourceType === 'Playlist' && sourceId) {
+    sourceUrl = 'https://www.youtube.com/playlist?list=' + sourceId;
+  } else if (sourceId) {
+    sourceUrl = 'https://www.youtube.com/channel/' + sourceId;
+  }
+
+  const draft = {
+    content: 'ESOVDB YouTube watchlist automation added ' + count + ' new video submission' + plural + ((payload.sampleVideo && payload.sampleVideo.id) ? ', including:' : '.'),
+    embeds: []
+  };
+
+  if (payload.sampleVideo && payload.sampleVideo.id) {
+    const sampleVideoUrl = 'https://youtu.be/' + payload.sampleVideo.id;
+    const sampleVideoTitle = payload.sampleVideo.title || ('YouTube video (' + payload.sampleVideo.id + ')');
+    const sampleVideoDate = payload.sampleVideo.date || null;
+
+    draft.embeds.push({
+      title: sampleVideoTitle,
+      url: sampleVideoUrl,
+      color: parseInt('ff0100', 16),
+      author: {
+        name: payload.sampleVideo.channel || sourceTitle
+      },
+      image: {
+        url: 'https://i3.ytimg.com/vi/' + payload.sampleVideo.id + '/hqdefault.jpg'
+      },
+      fields: []
+    });
+    
+    if (sampleVideoDate) draft.embeds[0].fields.push({ name: 'Published on', value: sampleVideoDate, inline: false });
+    if (additional > 0) draft.embeds[0].footer = { text: `…and ${additional} additional video submission${additionalPlural}.` };
+  }
+
+  if (sourceUrl) {
+    draft.embeds.push({
+      title: sourceTitle,
+      url: sourceUrl,
+      color: parseInt(sourceType === 'Channel' ? 'c4ecff' : 'fceab6', 16),
+      author: {
+        name: `YouTube ${sourceType}`
+      },
+      timestamp: payload.checkedAtIso
+    });
+  }
+
+  return draft;
+};
+
+/**
  *  Transforms any payload, for any webhook provider, with any action into a properly-formmatted message for that provider and action
  *
  *  @function message
@@ -269,6 +355,8 @@ const message = (payload, provider, action) => {
       return itemToDiscord(`New submission on the Earth Science Online Video Database! <#${topicMetadata.get(payload.extra.match(regexTopic)[1]).channelId}>`, payload);
     case 'discord-userSubmission':
       return { content: `<@${payload.submittedBy}> Submission received! Thanks for your contribution of "${payload.title}" to the ESOVDB!` };
+    case 'discord-newWatchlistSubmissionTotal':
+      return watchlistRunToDiscord(payload);
     default:
       throw new Error('[ERROR] No provider or action given.');
     }
@@ -360,7 +448,7 @@ module.exports = {
   execute: async (payload, provider, action) => {
     try {
       const response = await sources.get(provider).instance.post(sources.get(provider).endpoints[action], message(payload, provider, action));
-      if (response.status >= 200) { console.log(`› Successful webhook response from '${provider}' for '${action}.`); return response; }
+      if (response.status < 300) { console.log(`› Successful webhook response from '${provider}' for '${action}.`); return response; }
       else { throw new Error(`[ERROR] Webhook failed: '${provider}' for '${action}.`); }
     } catch (err) {
       console.error(err.message);
