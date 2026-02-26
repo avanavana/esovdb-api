@@ -989,6 +989,28 @@ module.exports = {
       if (!record) throw new Error(`Watchlist item not found for ID=${sourceId}${type ? ` Type=${type}` : ''}`);
       return record;
     },
+    
+    /**
+     *  Gets an ESOVDB watchlist record by unique combination of source ID (Watchlist.ID), type, and duration
+     *
+     *  @method watchlist.getBySourceId
+     *  @param {string} sourceId
+     *  @param {('Channel'|'Playlist')=} type
+     *  @returns {Promise<Object>}
+     */
+    
+    getBySourceIdAndDuration: async (sourceId, type, duration) => {
+      const table = base('Watchlist');
+      const filterByFormula =
+        `AND(` +
+        `{ID}='${escapeAirtableFormulaString(sourceId)}',` +
+        `{Type}='${escapeAirtableFormulaString(type)}',` +
+        `{Duration}='${escapeAirtableFormulaString(duration)}'` +
+        `)`;
+
+      const records = await table.select({ filterByFormula, maxRecords: 1 }).firstPage();
+      return (records && records.length) ? records[0] : null;
+    },
 
     /**
      *  Pick next ESOVDB watchlist record to check: Active + non-empty ID, oldest Last Checked first.
@@ -1048,6 +1070,7 @@ module.exports = {
       if (!sourceId) throw new Error('Missing required field "channel".');
 
       const type = inferWatchlistTypeFromId(sourceId);
+      const duration = input.length || 'any';
       
       let deferProcessing;
       
@@ -1073,6 +1096,14 @@ module.exports = {
       
       console.log(`› channel=${sourceId}, name=${name}, type=${type}, length=${input.length || 'any'}, publishedAfter=${publishedAfter}, deferProcessing=${String(deferProcessing)}`);
 
+      const existing = await getBySourceIdAndDuration(sourceId, type, duration);
+      
+      if (existing) {
+        const e = new Error(`Watchlist item already exists for ID=${sourceId}, Type=${type}, Duration=${duration} (recordId=${existing.id})`);
+        e.code = 'WATCHLIST_DUPLICATE';
+        throw e;
+      }
+      
       const payload = {
         'Name': name,
         'Status': 'Active',

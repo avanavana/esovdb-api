@@ -447,6 +447,8 @@ module.exports = {
     }
 
     throw new Error(`Invalid publishedAfter "${value}". Expected YYYY, YYYY-MM, or YYYY-MM-DD.`);
-  }
+  },
+  
+  escapeAirtableFormulaString: (value) => String(value).replace(/'/g, `\\'`)
   
 }

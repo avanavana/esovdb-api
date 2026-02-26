@@ -303,8 +303,10 @@ app.route('/watch')
         const created = await esovdb.watchlist.add(body);
         res.status(201).send(created);
       } catch (err) {
+        const message = String(err && err.message ? err.message : err);
         console.error('[ERROR] watch/add:', err);
-        res.status(500).send(String(err && err.message ? err.message : err));
+        if (err && err.code === 'WATCHLIST_DUPLICATE') return res.status(409).send(message);
+        res.status(500).send(message);
       }
     }
   )
