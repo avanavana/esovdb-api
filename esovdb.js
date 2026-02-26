@@ -1063,7 +1063,7 @@ module.exports = {
      *  @returns {Promise<Object>} created Airtable record
      *  @throws {Error} when ID is invalid, name cannot be resolved, publishedAfter is invalid, or Airtable / GitHub dispatch fails
      */
-    add: async (input, opts = {}) => {
+    add: async function(input, opts = {}) {
       const table = base('Watchlist');
 
       const sourceId = String(input.channel || '').trim();
@@ -1096,7 +1096,7 @@ module.exports = {
       
       console.log(`› channel=${sourceId}, name=${name}, type=${type}, length=${input.length || 'any'}, publishedAfter=${publishedAfter}, deferProcessing=${String(deferProcessing)}`);
 
-      const existing = await getBySourceIdAndDuration(sourceId, type, duration);
+      const existing = await this.getBySourceIdAndDuration(sourceId, type, duration);
       
       if (existing) {
         const e = new Error(`Watchlist item already exists for ID=${sourceId}, Type=${type}, Duration=${duration} (recordId=${existing.id})`);

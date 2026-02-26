@@ -301,12 +301,30 @@ app.route('/watch')
       try {
         const body = req.body || {};
         const created = await esovdb.watchlist.add(body);
-        res.status(201).send(created);
+        
+        res.status(201).send({
+          ok: true,
+          code: 'WATCHLIST_CREATED',
+          message: `Successfully added YouTube ${created.fields.Type === 'Channel' ? 'channel' : 'playlist'} "${created.fields.Name}" to the ESOVDB watchlist.`,
+          record: created
+        });
       } catch (err) {
         const message = String(err && err.message ? err.message : err);
         console.error('[ERROR] watch/add:', err);
-        if (err && err.code === 'WATCHLIST_DUPLICATE') return res.status(409).send(message);
-        res.status(500).send(message);
+        
+        if (err && err.code === 'WATCHLIST_DUPLICATE') {
+          return res.status(409).send({
+            ok: false,
+            code: err.code,
+            message
+          });
+        }
+        
+        res.status(500).send({
+          ok: false,
+          code: 'WATCHLIST_ADD_FAILED',
+          message
+        });
       }
     }
   )
