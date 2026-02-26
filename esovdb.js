@@ -16,7 +16,8 @@ const {
   packageAuthors,
   sleep,
   normalizePublishedAfter,
-  inferWatchlistTypeFromId
+  inferWatchlistTypeFromId,
+  escapeAirtableFormulaString
 } = require('./util');
 
 const base = new Airtable({
