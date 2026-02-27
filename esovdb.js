@@ -117,7 +117,8 @@ const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 const formatFields = new Map([
   [ 'zotero', [ 'Zotero Key', 'Zotero Version', 'Series Zotero Key', 'Title', 'URL', 'Year', 'Description', 'Running Time', 'Format', 'Topic', 'Tags', 'Learn More', 'Series Text', 'Series Count Text', 'Vol.', 'No.', 'Publisher Text', 'Presenter First Name', 'Presenter Last Name', 'Language Code', 'Location', 'Plus Code', 'Video Provider', 'ESOVDBID', 'Record ID', 'ISO Added', 'Created', 'Modified' ]],
   [ 'yt', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]],
-  [ 'youtube', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]]
+  [ 'youtube', [ 'YouTube Video ID', 'Record ID', 'ESOVDBID', 'Zotero Key', 'ISO Added' ]],
+  [ 'youtubeSubmission', [ 'URL', 'Record ID', 'Created' ]]
 ]);
 
 /** @constant {Object} videoFormat - A collection of formatting methods that can be used to transform ESOVDB Airtable output into different formats */
@@ -162,7 +163,7 @@ const videoFormat = {
   }),
   
   /**
-   *  Formats a video from the ESOVDB to a JavaScript Object with useful information for locating it in either the ESOVDB or the Zotero library, by its YouTube videoId, if it has one
+   *  Formats a video from the ESOVDB Videos table to a JavaScript Object with useful information for locating it in either the ESOVDB or the Zotero library, by its YouTube videoId, if it has one
    *
    *  @method toYTJSON
    *  @param {AirtableRecord} record - The Airtable record class instance to format
@@ -176,6 +177,25 @@ const videoFormat = {
     zoteroKey: record.get('Zotero Key') || '',
     added: formatDate(record.get('ISO Added')) || ''
   }),
+  
+  /**
+   *  Formats a video from the ESOVDB Submissions table to a JavaScript Objec, by its YouTube videoId, if it has one
+   *
+   *  @method toSubmissionYTJSON
+   *  @param {AirtableRecord} record - The Airtable record class instance to format
+   *  @returns {Object} An ESOVDB video submission, formatted as a JavaScript Object
+   */
+  
+  toSubmissionYTJSON: (record) => {
+    const url = record.get('URL') || '';
+    const match = regexYT.test(url) ? regexYT.exec(url) : null;
+    
+    return {
+      videoId: match ? match[1] : '',
+      recordId: record.get('Record ID') || '',
+      created: formatDate(record.get('Created')) || ''
+    }
+  },
   
   /**
    *  Formats a video from the ESOVDB to a JavaScript object from the raw JSON provided by Airtable, including all available fields.
@@ -235,6 +255,8 @@ const getFormat = (param = null, def = videoFormat.toZoteroJSON) => {
     case 'yt':
     case 'youtube':
       return videoFormat.toYTJSON;
+    case 'youtubeSubmission':
+      return videoFormat.toSubmissionYTJSON;
     default:
       return def;
   }
@@ -598,6 +620,8 @@ module.exports = {
   /**
    *  Retrieves a video from the ESOVDB, searching the 'Videos' table first, then the 'Submissions' table, given a YouTube video URL or ID, and returns a match's ESOVDB details in JSON format.
    *
+   *  If a matching record exists in both tables, the 'Videos' table record takes precedence and is returned over the 'Submissions' table record.
+   *
    *  @method queryYouTubeVideosAndSubmissions
    *  @requires Airtable
    *  @requires Bottleneck
@@ -606,12 +630,111 @@ module.exports = {
    *  @param {string} [req.params.id] - URL parameter representing a YouTube video's URL, short URL, or video ID, passed last, as a required URL parameter.  Either this or req.query.id is required.
    *  @param {string} [req.query.id] - URL query parameter representing a YouTube video's URL, short URL, or video ID, passed last, as a required URL parameter. Either this or req.params.id is required.
    *  @param {!express:Response} res - Express.js HTTP response context, an enhanced version of Node's http.ServerResponse class
-   *  @sideEffects Queries the ESOVDB Airtable base, page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript Object
-   *  @returns {Object} Object with collection or properties for identifying and linking to an ESOVDB record on YouTube
+   *  @sideEffects Queries the ESOVDB Airtable base ('Videos' table, and potentially also 'Submissions'), page by page, and either sends the retrieved data as JSON within an HTTPServerResponse object, or returns it as a JavaScript Object
+   *  @returns {Object} Object with collection or properties for identifying and linking to an ESOVDB video or submission record on YouTube
    */
   
   queryYouTubeVideosAndSubmissions: (req, res) => {
+    let videoId;
+
+    if (req.params.id && regexYT.test(decodeURIComponent(req.params.id))) {
+      videoId = regexYT.exec(decodeURIComponent(req.params.id))[1];
+    } else if (req.query.id && regexYT.test(decodeURIComponent(req.query.id))) {
+      videoId = regexYT.exec(decodeURIComponent(req.query.id))[1];
+    } else {
+      if (res) return res.status(400).send('Missing parameter "id".');
+      throw new Error('Missing parameter "id".');
+    }
+
+    console.log(`Performing videos-submissions/youtube ${res ? 'external' : 'internal'} API request for YouTube ID "${videoId}"...`);
+
+    const cachePath = `.cache${req.url}.json`;
+    const cachedResult = cache.readCacheWithPath(cachePath);
+
+    if (cachedResult !== null) {
+      console.log(`Cache hit. Returning cached result for ${req.url}...`);
+      if (res) return res.status(200).send(JSON.stringify(cachedResult));
+      return cachedResult;
+    }
+
+    console.log(`Cache miss. Loading from Airtable for ${req.url}...`);
+
+    let videoData = [];
     
+    const videoOptions = {
+      pageSize: 1,
+      maxRecords: 1,
+      view: 'All Online Videos',
+      sort: [{ field: 'Created' }],
+      filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${videoId}"))`
+    };
+
+    videoOptions.fields = formatFields.get(req.query.format) ? formatFields.get(req.query.format) : formatFields.get('youtube');
+
+    rateLimiter.wrap(
+      base('Videos')
+        .select(videoOptions)
+        .eachPage(
+          function page(records, fetchNextPage) {
+            videoData = [ ...videoData, ...records.map((record) => getFormat(req.query.format, videoFormat.toYTJSON)(record)) ];
+            fetchNextPage();
+          },
+          function done(videoErr) {
+            if (videoErr) {
+              console.error(videoErr);
+              if (res) return res.status(400).end(JSON.stringify(videoErr));
+              throw new Error(videoErr.message);
+            }
+
+            if (videoData.length > 0) {
+              console.log(`[DONE] Retrieved matching video record.`);
+              cache.writeCacheWithPath(cachePath, videoData[0]);
+              if (res) return res.status(200).send(JSON.stringify(videoData[0]));
+              return;
+            }
+
+            let submissionData = [];
+            
+            const submissionOptions = {
+              pageSize: 1,
+              maxRecords: 1,
+              view: 'Open Submissions',
+              sort: [{ field: 'Created' }],
+              filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${videoId}"))`
+            };
+
+            submissionOptions.fields = formatFields.get(req.query.format) ? formatFields.get(req.query.format) : formatFields.get('youtubeSubmission');
+
+            rateLimiter.wrap(
+              base('Submissions')
+                .select(submissionOptions)
+                .eachPage(
+                  function page(records, fetchNextPage) {
+                    submissionData = [ ...submissionData, ...records.map((record) => getSubmissionFormat(req.query.format)(record)) ];
+                    fetchNextPage();
+                  },
+                  function done(submissionErr) {
+                    if (submissionErr) {
+                      console.error(submissionErr);
+                      if (res) return res.status(400).end(JSON.stringify(submissionErr));
+                      throw new Error(submissionErr.message);
+                    }
+
+                    if (submissionData.length > 0) {
+                      console.log(`[DONE] Retrieved matching submission record.`);
+                      cache.writeCacheWithPath(cachePath, submissionData[0]);
+                      if (res) return res.status(200).send(JSON.stringify(submissionData[0]));
+                      return;
+                    }
+
+                    console.error(`[ERROR] Unable to find matching video or submission record.`);
+                    if (res) return res.status(404).send('Unable to find matching record.');
+                  }
+               )
+            );
+          }
+       )
+    );
   },
   
   /**

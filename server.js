@@ -89,13 +89,23 @@ app.get('/v1/videos/query/:pg?', [ middleware.auth, middleware.validateReq ], (r
 });
 
 /**
- *  API endpoint for querying the ESOVDB (Video table) for a single YouTube video—returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideos]{@link esovdb.queryYouTubeVideos}.
+ *  API endpoint for querying the ESOVDB (Videos table) for a single YouTube video—returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideos]{@link esovdb.queryYouTubeVideos}.
  *  @requires esovdb
  *  @callback esovdb.queryYouTubeVideos
  */
 
 app.get('/v1/videos/youtube/:id?', [ middleware.validateReq, middleware.allowCORS ], (req, res) => {
   esovdb.queryYouTubeVideos(req, res);
+});
+
+/**
+ *  API endpoint for querying the ESOVDB (Videos & Submissions tables) for a single YouTube video or submission (if both are found, video takes precedence)—returns simplified JSON. All request params and request query params documented in [esovdb.queryYouTubeVideos]{@link esovdb.queryYouTubeVideos}.
+ *  @requires esovdb
+ *  @callback esovdb.queryYouTubeVideosAndSubmissions
+ */
+
+app.get('/v1/videos-submissions/youtube/:id?', [ middleware.validateReq, middleware.allowCORS ], (req, res) => {
+  esovdb.queryYouTubeVideosAndSubmissions(req, res);
 });
 
 /**

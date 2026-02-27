@@ -294,7 +294,7 @@ const watchlistRunToDiscord = (payload) => {
   }
 
   const draft = {
-    content: 'ESOVDB YouTube watchlist automation added ' + count + ' new video submission' + plural + ((payload.sampleVideo && payload.sampleVideo.id) ? ', including:' : '.'),
+    content: 'ESOVDB YouTube watchlist automation added ' + count + ' new video submission' + plural + ((count > 1 && payload.sampleVideo && payload.sampleVideo.id) ? ', including:' : '.'),
     embeds: []
   };
 
