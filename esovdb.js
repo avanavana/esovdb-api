@@ -710,7 +710,7 @@ module.exports = {
                 .select(submissionOptions)
                 .eachPage(
                   function page(records, fetchNextPage) {
-                    submissionData = [ ...submissionData, ...records.map((record) => getSubmissionFormat(req.query.format)(record)) ];
+                    submissionData = [ ...submissionData, ...records.map((record) => getFormat(req.query.format, videoFormat.toSubmissionYTJSON)(record)) ];
                     fetchNextPage();
                   },
                   function done(submissionErr) {
