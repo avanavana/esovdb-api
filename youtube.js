@@ -9,7 +9,7 @@ const dotenv = require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
 const cache = require('./cache');
-const { sleep, formatYTDuration, validateAndParseDate } = require('./util');
+const { sleep, formatYTDuration, validateAndParseDate, normalizeUnicodeTitle, normalizeUnicodeDescription } = require('./util');
 const esovdb = require('./esovdb');
 
 const youtube = axios.create({ baseURL: 'https://youtube.googleapis.com/youtube/v3/' });
@@ -103,8 +103,8 @@ const appendChannelResultPage = (list, page) => [
   ...list, 
   ...page.data.items.map((video) => ({
     id: video.id.videoId,
-    title: video.snippet.title,
-    description: video.snippet.description,
+    title: normalizeUnicodeTitle(video.snippet.title),
+    description: normalizeUnicodeDescription(video.snippet.description),
     channel: video.snippet.channelTitle,
     channelId: video.snippet.channelId,
     year: video.snippet.publishedAt.substr(0, 4),
@@ -115,8 +115,8 @@ const appendPlaylistItemsResultPage = (list, page, playlistTitle) => [
   ...list, 
   ...page.data.items.map((video) => ({
     id: video.snippet.resourceId.videoId,
-    title: video.snippet.title,
-    description: video.snippet.description,
+    title: normalizeUnicodeTitle(video.snippet.title),
+    description: normalizeUnicodeDescription(video.snippet.description),
     playlist: playlistTitle,
     channel: video.snippet.channelTitle,
     channelId: video.snippet.channelId,
@@ -136,8 +136,8 @@ const appendVideoDetails = (list, page) => [
   ...list,
   ...page.data.items.map((video) => ({
     id: video.id,
-    title: video.snippet.title,
-    description: video.snippet.description,
+    title: normalizeUnicodeTitle(video.snippet.title),
+    description: normalizeUnicodeDescription(video.snippet.description),
     channel: video.snippet.channelTitle,
     channelId: video.snippet.channelId,
     year: video.snippet.publishedAt.substr(0, 4),

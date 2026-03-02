@@ -449,6 +449,21 @@ module.exports = {
     throw new Error(`Invalid publishedAfter "${value}". Expected YYYY, YYYY-MM, or YYYY-MM-DD.`);
   },
   
-  escapeAirtableFormulaString: (value) => String(value).replace(/'/g, `\\'`)
+  escapeAirtableFormulaString: (value) => String(value).replace(/'/g, `\\'`),
+  
+  normalizeUnicodeTitle: (title) => title
+    .normalize('NFKC')
+    .replace(/[‘’‛‹›]/g, '\'')
+    .replace(/[“”„«»]/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim(),
+  
+  normalizeUnicodeDescription: (text) => text
+    .normalize('NFKC')
+    .replace(/[‘’‛‹›]/g, '\'')
+    .replace(/[“”„«»]/g, '"')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
   
 }
