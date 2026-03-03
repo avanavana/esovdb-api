@@ -17,6 +17,7 @@
     "cronitor": "^2.2.3",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
+    "he": "^1.2.0",
     "node-cleanup": "^2.1.2",
     "node-webhooks": "^1.4.2",
     "redis": "^4.0.0",
