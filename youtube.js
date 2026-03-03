@@ -156,20 +156,48 @@ const appendVideoDetails = (list, page) => [
    */
 
 const collectAllChannelVideos = async (channelId, length = 'any', publishedAfter) => {
-  let i = 2, videos = [];
+  let i = 1, videos = [];
 
   console.log(`Retrieving video IDs from channel "${channelId}"...`);
   let result = await getChannelResultsPage(channelId, length, publishedAfter);
-  if (result.error) return res.status(500).send(JSON.stringify(result.error));
-  const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
+  
+  if (result && result.error) {
+    const err = new Error((result.error.errors && result.error.errors[0] && result.error.errors[0].message) || result.error.message || 'YouTube channel query failed.');
+    err.status = result.error.code || 502;
+    err.code = 'YOUTUBE_CHANNEL_QUERY_FAILED';
+    err.details = result.error;
+    throw err;
+  }
+  
+//   return res.status(500).send(JSON.stringify(result.error));
+//   const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
   videos = appendChannelResultPage(videos, result);
+  
+  const maxPages = 200;
+  let nextPageToken = result && result.data ? result.data.nextPageToken : null;
 
-  while (i <= pages) {
+  while (nextPageToken) {
+    if (i >= maxPages) {
+      const err = new Error('YouTube max pages limit reached.');
+      err.status = 502;
+      err.code = 'YOUTUBE_PAGINATION_LIMIT';
+      throw err;
+    }
+    
     console.log(`Retrieving video data from page ${i} of ${pages})...`);
     i++, await sleep(0.2);
-    result = await getChannelResultsPage(channelId, length, publishedAfter, result.data.nextPageToken);
-    if (result.error) return res.status(500).send(JSON.stringify(result.error));
+    result = await getChannelResultsPage(channelId, length, publishedAfter, nextPageToken);
+    
+    if (result && result.error) {
+      const err = new Error((result.error.errors && result.error.errors[0] && result.error.errors[0].message) || result.error.message || 'YouTube channel query failed');
+      err.status = result.error.code || 502;
+      err.code = 'YOUTUBE_CHANNEL_QUERY_FAILED';
+      err.details = result.error;
+      throw err;
+    }
+    
     videos = appendChannelResultPage(videos, result);
+    nextPageToken = result && result.data ? result.data.nextPageToken : null;
   }
 
   if (videos.length) {
@@ -177,10 +205,22 @@ const collectAllChannelVideos = async (channelId, length = 'any', publishedAfter
 
     while (videoIds.length > 0) {
       let videoDetailsPage = await getVideoDetailsPage(videoIds.splice(0, 50));
+      
+      if (videoDetailsPage && videoDetailsPage.error) {
+        const err = new Error((videoDetailsPage.error.errors && videoDetailsPage.error.errors[0] && videoDetailsPage.error.errors[0].message) || videoDetailsPage.error.message || 'YouTube video details query failed');
+        err.status = videoDetailsPage.error.code || 502;
+        err.code = 'YOUTUBE_CHANNEL_QUERY_FAILED';
+        err.details = videoDetailsPage.error;
+        throw err;
+      }
+      
       videoDetails = appendDetailsResultPage(videoDetails, videoDetailsPage);
     }
 
-    videos = videos.map((video) => ({ ...video, duration: videoDetails.filter((details) => details.id === video.id)[0].duration }));
+    videos = videos.map((video) => {
+      const match = videoDetails.find((details) => details.id === video.id);
+      return Object.assign({}, video, { duration: match ? match.duration : null });
+    });
     
     console.log(`Successfully retrieved data for ${videos.length} video${videos.length === 1 ? '' : 's'} from channel "${videos[0].channel}".`);
     return videos;
@@ -216,16 +256,29 @@ const processChannelVideos = async (channelId, length, publishedAfter) => {
     return { status: 201, data: { ...data, channel: videos[0].channel, channelId: videos[0].channelId }}
   } catch (error) {
     console.error(`Error processing videos from YouTube channel ${channelId}:`, error)
-    return { status: 500, error } 
+    return { status: error && error.status ? error.status : 500, error } 
   }
 }
 
 module.exports = {
   getChannelVideos: async (req, res) => {
-    if (!req.body.channel) return res.status(400).send('Channel ID or URL required.');
-    const channelId = regexYTChannel.exec(req.body.channel)[1];
-    const videos = await collectAllChannelVideos(channelId, req.body.length, req.body.publishedAfter);
-    return videos ? res.status(200).send(videos) : res.status(204).send('No videos retrieved.');
+    try {
+      if (!req.body.channel) return res.status(400).send('Channel ID or URL required.');
+      const match = regexYTChannel.exec(req.body.channel);
+      if (!match || !match[1]) return res.status(400).send('Invalid channel ID or URL.');
+      const channelId = match[1];
+      const videos = await collectAllChannelVideos(channelId, req.body.length, req.body.publishedAfter);
+      return videos ? res.status(200).send(videos) : res.status(204).send('No videos retrieved.');
+    } catch (error) {
+      console.error(`[ERROR] getChannelVideos(${req.body && req.body.channel ? req.body.channel : 'unknown'}):`, error);
+      
+      return res.status(error && error.status ? error.status : 500).send(JSON.stringify({
+        error: {
+          code: error && error.code ? error.code : 'YOUTUBE_CHANNEL_FETCH_FAILED',
+          message: error && error.message ? error.message : 'Failed to retrieve channel videos.'
+        }
+      }));
+    }
   },
   
   getPlaylistVideos: async (req, res) => {
