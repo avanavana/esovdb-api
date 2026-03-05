@@ -184,7 +184,7 @@ const collectAllChannelVideos = async (channelId, length = 'any', publishedAfter
       throw err;
     }
     
-    console.log(`Retrieving video data from page ${i} of ${pages})...`);
+    console.log(`Retrieving video data from page ${i}...`);
     i++, await sleep(0.2);
     result = await getChannelResultsPage(channelId, length, publishedAfter, nextPageToken);
     
