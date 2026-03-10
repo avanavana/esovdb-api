@@ -28,10 +28,8 @@ const videoLengths = [ 'any', 'short', 'medium', 'long' ];
 
 const isPlaylistCourse = async (playlistId) => {
   console.log('Attempting to detect whether playlist is course...');
-  const response = await fetch(`https://www.youtube.com/playlist?list=${playlistId}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9' }});
-  if (!response.ok) throw new Error(`Failed to fetch playlist "${playlistId}": ${response.statusText}`);
-  const html = await response.text();
-  return detectYouTubeCourse(html);
+  const { data } = await axios.get(`https://www.youtube.com/playlist?list=${playlistId}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9' }, responseType: 'text' });
+  return detectYouTubeCourse(data);
 }
 
 const getChannelResultsPage = async (channelId, length = 'any', publishedAfter = null, nextPageToken = null) => {
