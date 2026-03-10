@@ -9,7 +9,7 @@ const dotenv = require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
 const cache = require('./cache');
-const { sleep, formatYTDuration, validateAndParseDate, normalizeUnicodeTitle, normalizeUnicodeDescription } = require('./util');
+const { sleep, formatYTDuration, validateAndParseDate, normalizeUnicodeTitle, normalizeUnicodeDescription, detectYouTubeCourse } = require('./util');
 const esovdb = require('./esovdb');
 
 const youtube = axios.create({ baseURL: 'https://youtube.googleapis.com/youtube/v3/' });
