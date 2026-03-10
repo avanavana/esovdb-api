@@ -27,6 +27,7 @@ const regexDate = /^2[0-9]{3}(?:-[0-1][0-9](?:-[0-3][0-9])?)?$/;
 const videoLengths = [ 'any', 'short', 'medium', 'long' ];
 
 const isPlaylistCourse = async (playlistId) => {
+  console.log('Attempting to detect whether playlist is course...');
   const response = await fetch(`https://www.youtube.com/playlist?list=${playlistId}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9' }});
   if (!response.ok) throw new Error(`Failed to fetch playlist "${playlistId}": ${response.statusText}`);
   const html = await response.text();
@@ -280,6 +281,7 @@ const collectAllPlaylistVideos = async (playlistId) => {
 
   console.log(`Retrieving metadata from playlist "${playlistId}"...`);
   const isCourse = await isPlaylistCourse(playlistId);
+  console.log(`› Playlist is${!isCourse ? ' NOT' : ''} of type "course".`);
   let result = await getPlaylistResultsPage(playlistId);
 
   if (result && result.error) {
