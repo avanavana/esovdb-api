@@ -615,6 +615,92 @@ const normalizeUnicodeDescription = (text = '') =>
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
+const extractYtInitialData = (html) => {
+  const marker = 'var ytInitialData = ';
+  const start = html.indexOf(marker);
+  if (start === -1) return null;
+
+  let i = start + marker.length;
+
+  while (/\s/.test(html[i])) i++;
+  if (html[i] !== '{') return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let end = -1;
+
+  for (let j = i; j < html.length; j++) {
+    const ch = html[j];
+
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') depth++;
+    
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        end = j + 1;
+        break;
+      }
+    }
+  }
+
+  if (end === -1) return null;
+
+  return JSON.parse(html.slice(i, end));
+}
+
+const detectYouTubeCourse = (html) => {
+  const data = extractYtInitialData(html);
+  if (!data) return false;
+
+  let isCourse = false;
+
+  function walk(node) {
+    if (!node || typeof node !== 'object' || isCourse) return;
+
+    const badge = node && node.metadataBadgeRenderer;
+    
+    if (badge && (badge.label === 'Course' || badge.tooltip === 'Course')) {
+      isCourse = true;
+      return;
+    }
+
+    const endpoint = node && node.showEngagementPanelEndpoint;
+    const identifier = endpoint && endpoint.identifier;
+    const tag = identifier && identifier.tag;
+
+    if (tag === 'engagement-panel-course-metadata') {
+      isCourse = true;
+      return;
+    }
+
+    if ('courseProgressViewModel' in node || 'coursePerksViewModel' in node) {
+      isCourse = true;
+      return;
+    }
+
+    for (const value of Object.values(node)) {
+      walk(value);
+      if (isCourse) return;
+    }
+  }
+
+  walk(data);
+  return isCourse;
+}
+
 module.exports = {
   truncate,
   queueAsync,
@@ -640,5 +726,6 @@ module.exports = {
   escapeAirtableFormulaString,
   decodeEntities,
   normalizeUnicodeTitle,
-  normalizeUnicodeDescription
+  normalizeUnicodeDescription,
+  detectYouTubeCourse
 }

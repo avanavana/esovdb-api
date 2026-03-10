@@ -26,6 +26,13 @@ const regexDate = /^2[0-9]{3}(?:-[0-1][0-9](?:-[0-3][0-9])?)?$/;
 /** @constant {('any'|'short'|'medium'|'long')} videoLengths - Enum values accepted by the YouTube Data API for video duration in search queries */
 const videoLengths = [ 'any', 'short', 'medium', 'long' ];
 
+const isPlaylistCourse = async (playlistId) => {
+  const response = await fetch(`https://www.youtube.com/playlist?list=${playlistId}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9' }});
+  if (!response.ok) throw new Error(`Failed to fetch playlist "${playlistId}": ${response.statusText}`);
+  const html = await response.text();
+  return detectYouTubeCourse(html);
+}
+
 const getChannelResultsPage = async (channelId, length = 'any', publishedAfter = null, nextPageToken = null) => {
   try {
     const params = new URLSearchParams({
@@ -146,14 +153,14 @@ const appendVideoDetails = (list, page) => [
 }))];
 
 /**
-   *  Collects all videos, with video details, from a given YouTube channel and returns them as an array of objects
-   *
-   *  @method collectAllChannelVideos
-   *  @param {string} channelId - The channel ID of the YouTube channel that should be watched
-   *  @param {('any'|'long'|'medium'|'short')} [length='any'] - The length of the videos to query, one of 'any' or 'long', 'medium', or 'short', with 'any' as the default
-   *  @param {string} [publishedAfter] - The date after which the videos should be collected, in one of the formats 'YYYY-MM-DD', 'YYYY-MM', or 'YYYY'
-   *  @returns {(Promise<object[]>|null)} - An array of objects containing the details of the videos collected or null, if no videos were found or retrieved
-   */
+  *  Collects all videos, with video details, from a given YouTube channel and returns them as an array of objects
+  *
+  *  @method collectAllChannelVideos
+  *  @param {string} channelId - The channel ID of the YouTube channel that should be collected
+  *  @param {('any'|'long'|'medium'|'short')} [length='any'] - The length of the videos to query, one of 'any' or 'long', 'medium', or 'short', with 'any' as the default
+  *  @param {string} [publishedAfter] - The date after which the videos should be collected, in one of the formats 'YYYY-MM-DD', 'YYYY-MM', or 'YYYY'
+  *  @returns {(Promise<object[]>|null)} - An array of objects containing the details of the videos collected or null, if no videos were found or retrieved
+  */
 
 const collectAllChannelVideos = async (channelId, length = 'any', publishedAfter) => {
   let i = 1, videos = [];
@@ -169,8 +176,8 @@ const collectAllChannelVideos = async (channelId, length = 'any', publishedAfter
     throw err;
   }
   
-//   return res.status(500).send(JSON.stringify(result.error));
-//   const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
+  // return res.status(500).send(JSON.stringify(result.error));
+  // const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
   videos = appendChannelResultPage(videos, result);
   
   const maxPages = 200;
@@ -260,6 +267,100 @@ const processChannelVideos = async (channelId, length, publishedAfter) => {
   }
 }
 
+/**
+  *  Collects all videos, with video details, from a given YouTube playlist or course and returns them as an array of objects
+  *
+  *  @method collectAllPlaylistVideos
+  *  @param {string} playlistId - The playlist ID of the YouTube playlist that should be collected
+  *  @returns {(Promise<object[]>|null)} - An array of objects containing the details of the videos collected or null, if no videos were found or retrieved
+  */
+
+const collectAllPlaylistVideos = async (playlistId) => {
+  let i = 1, videos = [];
+
+  console.log(`Retrieving metadata from playlist "${playlistId}"...`);
+  const isCourse = await isPlaylistCourse(playlistId);
+  let result = await getPlaylistResultsPage(playlistId);
+
+  if (result && result.error) {
+    const err = new Error((result.error.errors && result.error.errors[0] && result.error.errors[0].message) || result.error.message || 'YouTube playlist metadata query failed.');
+    err.status = result.error.code || 502;
+    err.code = 'YOUTUBE_PLAYLIST_QUERY_FAILED';
+    err.details = result.error;
+    throw err;
+  }
+
+  const playlistTitle = result && result.snippet && result.snippet.title ? result.snippet.title : playlistId;
+  console.log(`Retrieving video IDs from${isCourse ? ' course' : ''} playlist "${playlistTitle}"...`);
+  result = await getPlaylistItemsResultsPage(playlistId);
+
+  if (result && result.error) {
+    const err = new Error((result.error.errors && result.error.errors[0] && result.error.errors[0].message) || result.error.message || 'YouTube playlist items query failed.');
+    err.status = result.error.code || 502;
+    err.code = 'YOUTUBE_PLAYLIST_QUERY_FAILED';
+    err.details = result.error;
+    throw err;
+  }
+
+  videos = appendPlaylistItemsResultPage(videos, result, playlistTitle);
+
+  const maxPages = 200;
+  let nextPageToken = result && result.data ? result.data.nextPageToken : null;
+
+  while (nextPageToken) {
+    if (i >= maxPages) {
+      const err = new Error('YouTube max pages limit reached.');
+      err.status = 502;
+      err.code = 'YOUTUBE_PAGINATION_LIMIT';
+      throw err;
+    }
+
+    console.log(`Retrieving video data from page ${i + 1}...`);
+    i++, await sleep(0.2);
+    result = await getPlaylistItemsResultsPage(playlistId, nextPageToken);
+
+    if (result && result.error) {
+      const err = new Error((result.error.errors && result.error.errors[0] && result.error.errors[0].message) || result.error.message || 'YouTube playlist query failed');
+      err.status = result.error.code || 502;
+      err.code = 'YOUTUBE_PLAYLIST_QUERY_FAILED';
+      err.details = result.error;
+      throw err;
+    }
+
+    videos = appendPlaylistItemsResultPage(videos, result, playlistTitle);
+    nextPageToken = result && result.data ? result.data.nextPageToken : null;
+  }
+
+  if (videos.length) {
+    let videoDetails = [], videoIds = videos.map((video) => video.id);
+
+    while (videoIds.length > 0) {
+      let videoDetailsPage = await getVideoDetailsPage(videoIds.splice(0, 50));
+
+      if (videoDetailsPage && videoDetailsPage.error) {
+        const err = new Error((videoDetailsPage.error.errors && videoDetailsPage.error.errors[0] && videoDetailsPage.error.errors[0].message) || videoDetailsPage.error.message || 'YouTube video details query failed');
+        err.status = videoDetailsPage.error.code || 502;
+        err.code = 'YOUTUBE_PLAYLIST_QUERY_FAILED';
+        err.details = videoDetailsPage.error;
+        throw err;
+      }
+
+      videoDetails = appendDetailsResultPage(videoDetails, videoDetailsPage);
+    }
+
+    videos = videos.map((video) => {
+      const match = videoDetails.find((details) => details.id === video.id);
+      return Object.assign({}, video, { isCourseVideo: isCourse, duration: match ? match.duration : null });
+    });
+
+    console.log(`Successfully retrieved data for ${videos.length} video${videos.length === 1 ? '' : 's'} from${isCourse ? ' course' : ''} playlist "${playlistTitle}".`);
+    return videos;
+  } else {
+    console.log(`No videos were retrieved for the requested${isCourse ? ' course' : ''} playlist.`);
+    return null;
+  }
+};
+
 module.exports = {
   getChannelVideos: async (req, res) => {
     try {
@@ -282,40 +383,22 @@ module.exports = {
   },
   
   getPlaylistVideos: async (req, res) => {
-    if (!req.body.playlist) return res.status(400).send('Playlist ID or URL required.');
-    let i = 2, videos = [], playlistId = regexYTPlaylist.exec(req.body.playlist)[1];
-    console.log(`Retrieving metadata from playlist "${playlistId}"...`);
-    let playlistData = await getPlaylistResultsPage(playlistId);
-    const playlistTitle = playlistData ? playlistData.snippet.title : playlistId;
-    console.log(`Retrieving video IDs from playlist "${playlistTitle}"...`);
-    let result = await getPlaylistItemsResultsPage(playlistId);
-    if (result.error) return res.status(500).send(JSON.stringify(result.error));
-    const pages = Math.ceil(result.data.pageInfo.totalResults / result.data.pageInfo.resultsPerPage);
-    videos = appendPlaylistItemsResultPage(videos, result, playlistTitle);
-
-    while (i <= pages) {
-      console.log(`Retrieving video data from page ${i} of ${pages})...`);
-      i++, await sleep(0.2);
-      result = await getPlaylistItemsResultsPage(playlistId, result.data.nextPageToken);
-      if (result.error) return res.status(500).send(JSON.stringify(result.error));
-      videos = appendPlaylistItemsResultPage(videos, result, playlistTitle);
-    }
-
-    if (videos.length) {
-      let videoDetails = [], videoIds = videos.map((video) => video.id);
-
-      while (videoIds.length > 0) {
-        let videoDetailsPage = await getVideoDetailsPage(videoIds.splice(0, 50));
-        videoDetails = appendDetailsResultPage(videoDetails, videoDetailsPage);
-      }
-
-      videos = videos.map((video) => ({ ...video, duration: videoDetails.filter((details) => details.id === video.id)[0].duration }));
+    try {
+      if (!req.body.playlist) return res.status(400).send('Playlist ID or URL required.');
+      const match = regexYTPlaylist.exec(req.body.playlist);
+      if (!match || !match[1]) return res.status(400).send('Invalid playlist ID or URL.');
+      const playlistId = match[1];
+      const videos = await collectAllPlaylistVideos(playlistId);
+      return videos ? res.status(200).send(videos) : res.status(204).send('No videos retrieved.');
+    } catch (error) {
+      console.error(`[ERROR] getPlaylistVideos(${req.body && req.body.channel ? req.body.channel : 'unknown'}):`, error);
       
-      console.log(`Successfully retrieved data for ${videos.length} video${videos.length === 1 ? '' : 's'} from playlist "${playlistTitle}".`);
-      return res.status(200).send(videos);
-    } else {
-      console.log('No videos were retrieved for the requested playlist.');
-      return res.status(204).send('No videos retrieved.');
+      return res.status(error && error.status ? error.status : 500).send(JSON.stringify({
+        error: {
+          code: error && error.code ? error.code : 'YOUTUBE_PLAYLIST_FETCH_FAILED',
+          message: error && error.message ? error.message : 'Failed to retrieve playlist videos.'
+        }
+      }));
     }
   },
   
