@@ -1171,6 +1171,7 @@ module.exports = {
      *  - `Type` is inferred from the ID:
      *    - Channel IDs match `UC[\w-]{21}[AQgw]` => `"Channel"`
      *    - Playlist IDs starting with `PL` => `"Playlist"`
+     *    - if type in the request body is explicitly set to "Course" then type is "Course"
      *  - `publishedAfter` accepts `YYYY`, `YYYY-MM`, or `YYYY-MM-DD` and is normalized to ISO UTC midnight
      *  - If `name` is missing for a channel ID, the method fetches the channel title from the YouTube Data API
      *    using `process.env.YOUTUBE_API_KEY`
@@ -1193,7 +1194,7 @@ module.exports = {
       const sourceId = String(input.channel || '').trim();
       if (!sourceId) throw new Error('Missing required field "channel".');
 
-      const type = inferWatchlistTypeFromId(sourceId);
+      const type = input.type && input.type === 'Course' ? 'Course' : inferWatchlistTypeFromId(sourceId);
       const duration = input.length || 'any';
       
       let deferProcessing;
