@@ -16,6 +16,7 @@ const youtube = require('./youtube');
 const zotero = require('./zotero');
 
 const app = express();
+const port = Number(process.env.PORT || 3000);
 
 const middleware = {
   
@@ -251,6 +252,18 @@ app.post('/submissions/youtube/video/:id', [ middleware.auth, middleware.validat
   esovdb.newVideoSubmission(req, res);
 });
 
+app.get('/health', async (req, res) => {
+  try {
+    await db.connect();
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    res.status(503).json({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
 /**
  *  API endpoint for querying the entire ESOVDB submissions table—returns JSON. Used with the premium header 'esovdb-no-cache', always returns fresh results.
  *  @requires esovdb
@@ -430,9 +443,13 @@ app.get('/*', (req, res) => {
  *  @callback - Logs the start of the server session and port on which the server is listen.
  */
 
-const listener = app.listen(3000, '0.0.0.0', () => {
-  monitor.ping({ state: 'ok', message: 'API server listening on port 3000.' });
-  db.connect();
+const listener = app.listen(port, '0.0.0.0', async () => {
+  monitor.ping({ state: 'ok', message: `API server listening on port ${port}.` });
+  try {
+    await db.connect();
+  } catch (err) {
+    console.error('[Error] Initial Upstash Redis connection check failed.', err);
+  }
   console.log('API server listening on port ' + listener.address().port);
 });
 

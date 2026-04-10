@@ -1,6 +1,6 @@
 {
   "name": "esovdb-api",
-  "version": "3.2.0",
+  "version": "4.0.0",
   "description": "Public and private API access to the Earth Science Online Video Database.",
   "homepage": "https://airtable.com/shrFBKQwGjstk7TVn",
   "author": "Avana Vana <avana@esovdb.org> (http://www.avanavana.com)",
@@ -10,6 +10,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@upstash/redis": "^1.35.6",
     "airtable": "^0.8.1",
     "axios": "^0.21.4",
     "bottleneck": "^2.19.5",
@@ -20,7 +21,6 @@
     "he": "^1.2.0",
     "node-cleanup": "^2.1.2",
     "node-webhooks": "^1.4.2",
-    "redis": "^4.0.0",
     "rxjs": "^7.4.0",
     "twitter-api-v2": "^1.6.5"
   },
