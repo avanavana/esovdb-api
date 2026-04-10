@@ -19,11 +19,6 @@ const regexYTChannel = /^(?:https?:\/\/(?:www\.)?youtube\.com\/channel\/)?(UC[\w
 /** @constant {RegExp} regexYTPlaylist - Regular expression to match a valid YouTube playlist URL and extract its playlistId. */
 const regexYTPlaylist = /(?!.*\?.*\bv=)(?!rec)(?:youtu\.be\/|youtube\.com\/(?:playlist|list|embed|watch)(?:\.php)?(?:\?.*list=|\/)|)([\w\-]{12,})/;
 
-/** @constant {RegExp} regexDate - Regular expression to match dates in any of the formats YYYY-mm-DD, YYYY-mm, or YYYY. */
-const regexDate = /^2[0-9]{3}(?:-[0-1][0-9](?:-[0-3][0-9])?)?$/;
-
-/** @constant {('any'|'short'|'medium'|'long')} videoLengths - Enum values accepted by the YouTube Data API for video duration in search queries */
-const videoLengths = [ 'any', 'short', 'medium', 'long' ];
 
 const upcomingVideoQueueKey = 'queue:youtube:upcoming:videos';
 const upcomingVideoQueueMetaKey = 'queue:youtube:upcoming:meta';
