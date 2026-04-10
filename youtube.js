@@ -9,6 +9,7 @@ const dotenv = require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
 const cache = require('./cache');
+const { db } = require('./batch');
 const { sleep, formatYTDuration, validateAndParseDate, normalizeUnicodeTitle, normalizeUnicodeDescription, detectYouTubeCourse } = require('./util');
 const esovdb = require('./esovdb');
 
@@ -25,6 +26,136 @@ const regexDate = /^2[0-9]{3}(?:-[0-1][0-9](?:-[0-3][0-9])?)?$/;
 
 /** @constant {('any'|'short'|'medium'|'long')} videoLengths - Enum values accepted by the YouTube Data API for video duration in search queries */
 const videoLengths = [ 'any', 'short', 'medium', 'long' ];
+
+const upcomingVideoQueueKey = 'queue:youtube:upcoming:videos';
+const upcomingVideoQueueMetaKey = 'queue:youtube:upcoming:meta';
+const upcomingVideoQueueLockKey = 'lock:queue:youtube:upcoming:videos';
+const upcomingVideoRecheckDelayHours = Math.max(0, Number(process.env.YOUTUBE_UPCOMING_RECHECK_DELAY_HOURS || 24));
+const upcomingVideoRecheckIntervalSeconds = Math.max(60, Number(process.env.YOUTUBE_UPCOMING_RECHECK_INTERVAL_SECONDS || 600));
+const upcomingVideoRecheckLockSeconds = Math.max(30, Math.min(upcomingVideoRecheckIntervalSeconds, 300));
+let upcomingVideoRecheckTimer = null;
+
+function isUpcomingVideo(video) {
+  return Boolean(video && (
+    video.liveBroadcastContent === 'upcoming' ||
+    (video.scheduledStartTime && !video.actualStartTime && !video.actualEndTime)
+  ));
+}
+
+function getUpcomingVideoRunAt(video) {
+  const scheduledStartTime = video && video.scheduledStartTime ? Date.parse(video.scheduledStartTime) : Number.NaN;
+  const fallback = Date.now() + upcomingVideoRecheckDelayHours * 60 * 60 * 1000;
+
+  return Number.isFinite(scheduledStartTime)
+    ? Math.max(scheduledStartTime + upcomingVideoRecheckDelayHours * 60 * 60 * 1000, fallback)
+    : fallback;
+}
+
+async function queueUpcomingVideo(video, context = {}) {
+  const payload = {
+    videoId: video.id,
+    sourceId: context.sourceId || null,
+    sourceType: context.sourceType || null,
+    scheduledStartTime: video.scheduledStartTime || null,
+    queuedAt: new Date().toISOString(),
+    retryCount: Number(context.retryCount) || 0,
+  };
+
+  await db.hSet(upcomingVideoQueueMetaKey, video.id, JSON.stringify(payload));
+  await db.zAdd(upcomingVideoQueueKey, getUpcomingVideoRunAt(video), video.id);
+  console.log(`Queued upcoming YouTube video "${video.title || video.id}" for recheck.`);
+}
+
+async function queueUpcomingVideos(videos, context = {}) {
+  for (const video of videos) {
+    await queueUpcomingVideo(video, context);
+  }
+}
+
+async function clearUpcomingVideo(videoId) {
+  await db.zRem(upcomingVideoQueueKey, videoId);
+  await db.hDel(upcomingVideoQueueMetaKey, videoId);
+}
+
+async function getVideo(videoId) {
+  console.log(`Retrieving data for video with ID "${videoId}"...`);
+  const result = await getVideoDetailsPage([ videoId ]);
+  if (result.error || !result.data.items.length) throw new Error(result.error);
+  const video = appendVideoDetails([], result)[0];
+  console.log(`Successfully retrieved data for "${video.title}" from channel "${video.channel}".`);
+  return video;
+}
+
+async function processUpcomingVideo(videoId) {
+  const payload = await db.hGet(upcomingVideoQueueMetaKey, videoId);
+  const metadata = payload ? JSON.parse(payload) : { videoId };
+  const video = await getVideo(videoId);
+
+  if (isUpcomingVideo(video)) {
+    await queueUpcomingVideo(video, {
+      sourceId: metadata.sourceId,
+      sourceType: metadata.sourceType,
+      retryCount: (Number(metadata.retryCount) || 0) + 1,
+    });
+    return { status: 'rescheduled' };
+  }
+
+  const existing = await esovdb.findYouTubeVideoOrSubmission(videoId);
+  if (existing) {
+    console.log(`Skipping queued YouTube video "${videoId}" because it already exists in ESOVDB ${existing.table}.`);
+    await clearUpcomingVideo(videoId);
+    return { status: 'existing' };
+  }
+
+  await esovdb.addSubmissionFromYouTubeVideo(video, 'ESOVDB API', 'ESOVDB API Deferred Premiere Watch');
+  await clearUpcomingVideo(videoId);
+  console.log(`Successfully created deferred submission for YouTube video "${video.title || video.id}".`);
+  return { status: 'created' };
+}
+
+async function processDueUpcomingVideos() {
+  const lock = await db.set(upcomingVideoQueueLockKey, String(process.pid), {
+    nx: true,
+    ex: upcomingVideoRecheckLockSeconds,
+  });
+
+  if (!lock) return;
+
+  try {
+    const dueVideoIds = await db.zRangeByScore(upcomingVideoQueueKey, 0, Date.now());
+    if (!dueVideoIds.length) return;
+
+    console.log(`Processing ${dueVideoIds.length} queued upcoming YouTube video${dueVideoIds.length === 1 ? '' : 's'}...`);
+
+    for (const videoId of dueVideoIds) {
+      try {
+        await processUpcomingVideo(videoId);
+      } catch (err) {
+        console.error(`[ERROR] Unable to process queued upcoming YouTube video "${videoId}":`, err);
+      }
+    }
+  } finally {
+    await db.del(upcomingVideoQueueLockKey);
+  }
+}
+
+function startUpcomingVideoRecheckWorker() {
+  if (upcomingVideoRecheckTimer) return upcomingVideoRecheckTimer;
+
+  upcomingVideoRecheckTimer = setInterval(() => {
+    processDueUpcomingVideos().catch((err) => {
+      console.error('[ERROR] Upcoming YouTube video recheck worker failed.', err);
+    });
+  }, upcomingVideoRecheckIntervalSeconds * 1000);
+
+  if (typeof upcomingVideoRecheckTimer.unref === 'function') upcomingVideoRecheckTimer.unref();
+
+  processDueUpcomingVideos().catch((err) => {
+    console.error('[ERROR] Upcoming YouTube video recheck worker failed at startup.', err);
+  });
+
+  return upcomingVideoRecheckTimer;
+}
 
 const isPlaylistCourse = async (playlistId) => {
   console.log('Attempting to detect whether playlist is course...');
@@ -92,7 +223,7 @@ const getPlaylistResultsPage = async (id) => {
 const getVideoDetailsPage = async (videoIds) => {
   try {
     const params = new URLSearchParams({
-      part: 'contentDetails,snippet,id',
+      part: 'contentDetails,liveStreamingDetails,snippet,id',
       maxResults: 50,
       key: process.env.YOUTUBE_API_KEY,
     });
@@ -135,7 +266,11 @@ const appendDetailsResultPage = (list, page) => [
   ...list,
   ...page.data.items.map((video) => ({
     id: video.id,
-    duration: formatYTDuration(video.contentDetails && video.contentDetails.duration)
+    duration: formatYTDuration(video.contentDetails && video.contentDetails.duration),
+    liveBroadcastContent: video.snippet && video.snippet.liveBroadcastContent ? video.snippet.liveBroadcastContent : 'none',
+    scheduledStartTime: video.liveStreamingDetails && video.liveStreamingDetails.scheduledStartTime ? video.liveStreamingDetails.scheduledStartTime : null,
+    actualStartTime: video.liveStreamingDetails && video.liveStreamingDetails.actualStartTime ? video.liveStreamingDetails.actualStartTime : null,
+    actualEndTime: video.liveStreamingDetails && video.liveStreamingDetails.actualEndTime ? video.liveStreamingDetails.actualEndTime : null,
   }))];
 
 const appendVideoDetails = (list, page) => [
@@ -148,7 +283,11 @@ const appendVideoDetails = (list, page) => [
     channelId: video.snippet.channelId,
     year: video.snippet.publishedAt.substr(0, 4),
     date: video.snippet.publishedAt,
-    duration: formatYTDuration(video.contentDetails && video.contentDetails.duration)
+    duration: formatYTDuration(video.contentDetails && video.contentDetails.duration),
+    liveBroadcastContent: video.snippet && video.snippet.liveBroadcastContent ? video.snippet.liveBroadcastContent : 'none',
+    scheduledStartTime: video.liveStreamingDetails && video.liveStreamingDetails.scheduledStartTime ? video.liveStreamingDetails.scheduledStartTime : null,
+    actualStartTime: video.liveStreamingDetails && video.liveStreamingDetails.actualStartTime ? video.liveStreamingDetails.actualStartTime : null,
+    actualEndTime: video.liveStreamingDetails && video.liveStreamingDetails.actualEndTime ? video.liveStreamingDetails.actualEndTime : null,
   }))];
 
 /**
@@ -369,7 +508,17 @@ module.exports = {
       if (!match || !match[1]) return res.status(400).send('Invalid channel ID or URL.');
       const channelId = match[1];
       const videos = await collectAllChannelVideos(channelId, req.body.length, req.body.publishedAfter);
-      return videos ? res.status(200).send(videos) : res.status(204).send('No videos retrieved.');
+      if (!videos || !videos.length) return res.status(204).send('No videos retrieved.');
+
+      const upcomingVideos = videos.filter(isUpcomingVideo);
+      const readyVideos = videos.filter((video) => !isUpcomingVideo(video));
+
+      if (upcomingVideos.length) {
+        await queueUpcomingVideos(upcomingVideos, { sourceId: channelId, sourceType: 'channel' });
+        console.log(`Queued ${upcomingVideos.length} upcoming YouTube video${upcomingVideos.length === 1 ? '' : 's'} from channel "${channelId}" for deferred processing.`);
+      }
+
+      return readyVideos.length ? res.status(200).send(readyVideos) : res.status(204).send('No videos retrieved.');
     } catch (error) {
       console.error(`[ERROR] getChannelVideos(${req.body && req.body.channel ? req.body.channel : 'unknown'}):`, error);
       
@@ -389,7 +538,17 @@ module.exports = {
       if (!match || !match[1]) return res.status(400).send('Invalid playlist ID or URL.');
       const playlistId = match[1];
       const videos = await collectAllPlaylistVideos(playlistId);
-      return videos ? res.status(200).send(videos) : res.status(204).send('No videos retrieved.');
+      if (!videos || !videos.length) return res.status(204).send('No videos retrieved.');
+
+      const upcomingVideos = videos.filter(isUpcomingVideo);
+      const readyVideos = videos.filter((video) => !isUpcomingVideo(video));
+
+      if (upcomingVideos.length) {
+        await queueUpcomingVideos(upcomingVideos, { sourceId: playlistId, sourceType: 'playlist' });
+        console.log(`Queued ${upcomingVideos.length} upcoming YouTube video${upcomingVideos.length === 1 ? '' : 's'} from playlist "${playlistId}" for deferred processing.`);
+      }
+
+      return readyVideos.length ? res.status(200).send(readyVideos) : res.status(204).send('No videos retrieved.');
     } catch (error) {
       console.error(`[ERROR] getPlaylistVideos(${req.body && req.body.channel ? req.body.channel : 'unknown'}):`, error);
       
@@ -402,12 +561,6 @@ module.exports = {
     }
   },
   
-  getVideo: async (videoId) => {
-    console.log(`Retrieving data for video with ID "${videoId}"...`);
-    const result = await getVideoDetailsPage([ videoId ]);
-    if (result.error || !result.data.items.length) throw new Error(result.error);
-    const video = appendVideoDetails([], result)[0];
-    console.log(`Successfully retrieved data for "${video.title}" from channel "${video.channel}".`);
-    return video;
-  }
+  getVideo,
+  startUpcomingVideoRecheckWorker,
 }

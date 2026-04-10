@@ -451,6 +451,7 @@ const listener = app.listen(port, '0.0.0.0', async () => {
   } catch (err) {
     console.error('[Error] Initial Upstash Redis connection check failed.', err);
   }
+  youtube.startUpcomingVideoRecheckWorker();
   console.log('API server listening on port ' + listener.address().port);
 });
 
