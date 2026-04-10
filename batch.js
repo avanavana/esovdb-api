@@ -70,9 +70,44 @@ const db = {
     return redis.del(key);
   },
 
+  async get(key) {
+    return redis.get(key);
+  },
+
+  async set(key, value, opts) {
+    return redis.set(key, value, opts);
+  },
+
+  async hSet(key, field, value) {
+    return redis.hset(key, { [field]: value });
+  },
+
+  async hGet(key, field) {
+    return redis.hget(key, field);
+  },
+
+  async hDel(key, ...fields) {
+    if (!fields.length) return 0;
+    return redis.hdel(key, ...fields);
+  },
+
   async sCard(key) {
     const size = await redis.scard(key);
     return Number(size) || 0;
+  },
+
+  async zAdd(key, score, member) {
+    return redis.zadd(key, { score, member });
+  },
+
+  async zRangeByScore(key, min, max) {
+    const data = await redis.zrange(key, min, max, { byScore: true });
+    return Array.isArray(data) ? data : [];
+  },
+
+  async zRem(key, ...members) {
+    if (!members.length) return 0;
+    return redis.zrem(key, ...members);
   },
 };
 

@@ -1025,31 +1025,63 @@ module.exports = {
     }
   },
   
+  addSubmissionFromYouTubeVideo: async (video, submittedBy = 'ESOVDB API', submissionSource = 'ESOVDB API') => {
+    const created = await rateLimiter.wrap(
+      base('Submissions').create({
+        'Title': video.title || '',
+        'URL': `https://youtu.be/${video.id}`,
+        'Description': video.description || '',
+        'Year': +video.year || null,
+        'Date': video.date || null,
+        'Running Time': +video.duration || null,
+        'Medium': 'Online Video',
+        'YouTube Channel Title': video.channel || '',
+        'YouTube Channel ID': video.channelId || '',
+        'Submission Source': submissionSource,
+        'Submitted by': submittedBy || ''
+      })
+    );
+
+    console.log(`Successfully created new submission on ESOVDB for YouTube video "${video.title || 'Title Unknown'}" (https://youtu.be/${video.id}).`);
+    return created;
+  },
+
+  findYouTubeVideoOrSubmission: async (videoId) => {
+    const escapedVideoId = escapeAirtableFormulaString(videoId);
+
+    const videoRecords = await base('Videos')
+      .select({
+        pageSize: 1,
+        maxRecords: 1,
+        view: 'All Online Videos',
+        filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${escapedVideoId}"))`
+      })
+      .firstPage();
+
+    if (videoRecords && videoRecords.length) return { table: 'Videos', record: videoRecords[0] };
+
+    const submissionRecords = await base('Submissions')
+      .select({
+        pageSize: 1,
+        maxRecords: 1,
+        view: 'Open Submissions',
+        filterByFormula: `AND({Video Provider} = 'YouTube', REGEX_MATCH({URL}, "${escapedVideoId}"))`
+      })
+      .firstPage();
+
+    return submissionRecords && submissionRecords.length
+      ? { table: 'Submissions', record: submissionRecords[0] }
+      : null;
+  },
+
   newVideoSubmission: async (req, res) => {
     try {
       if (!regexYTVideoId.test(req.params.id)) return res.status(400).send('Invalid YouTube Video ID.');
       const { getVideo } = require('./youtube');
-      const video = await getVideo(req.params.id);  
+      const video = await getVideo(req.params.id);
       const ip = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
-      
-      rateLimiter.wrap(
-        base('Submissions').create({
-          'Title': video.title || '',
-          'URL': `https://youtu.be/${video.id}`,
-          'Description': video.description || '',
-          'Year': +video.year || null,
-          'Date': video.date || null,
-          'Running Time': +video.duration || null,
-          'Medium': 'Online Video',
-          'YouTube Channel Title': video.channel || '',
-          'YouTube Channel ID': video.channelId || '',
-          'Submission Source': 'Is YouTube Video on ESOVDB?',
-          'Submitted by': ip || ''
-        }, function(err, record) {
-          if (err) throw new Error(err); 
-          console.log(`Successfully created new submission on ESOVDB for YouTube video "${video.title || 'Title Unknown'}" (https://youtu.be/${video.id}).`);
-          return res.status(200).send(JSON.stringify(video));
-        }));
+      await module.exports.addSubmissionFromYouTubeVideo(video, ip || '', 'Is YouTube Video on ESOVDB?');
+      return res.status(200).send(JSON.stringify(video));
     } catch (err) {
       res.status(500).end(JSON.stringify(err));
     }
