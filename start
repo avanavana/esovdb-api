@@ -1,14 +1,10 @@
 #!/bin/bash
 
 # bash (re)start script
-# - makes sure correct version of node is running
 # - stops any existing pm2 process for this server
 # - assumes Redis is hosted separately (for example Upstash)
 # - starts the API using pm2 with a configurable instance count
 # - use your own server directory location if needed
-
-# - required on my particular VM setup, which keeps resetting the node version
-nvm use 14.15.1
 
 [ ! -z "$(ps -ax | grep pm2 | grep -v grep)" ] && pm2 stop "server.js";
 
