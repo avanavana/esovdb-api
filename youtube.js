@@ -135,8 +135,8 @@ const appendDetailsResultPage = (list, page) => [
   ...list,
   ...page.data.items.map((video) => ({
     id: video.id,
-    duration: formatYTDuration(video.contentDetails.duration)
-}))];
+    duration: formatYTDuration(video.contentDetails && video.contentDetails.duration)
+  }))];
 
 const appendVideoDetails = (list, page) => [
   ...list,
@@ -148,8 +148,8 @@ const appendVideoDetails = (list, page) => [
     channelId: video.snippet.channelId,
     year: video.snippet.publishedAt.substr(0, 4),
     date: video.snippet.publishedAt,
-    duration: formatYTDuration(video.contentDetails.duration)
-}))];
+    duration: formatYTDuration(video.contentDetails && video.contentDetails.duration)
+  }))];
 
 /**
   *  Collects all videos, with video details, from a given YouTube channel and returns them as an array of objects

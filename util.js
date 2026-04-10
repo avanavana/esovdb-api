@@ -352,8 +352,12 @@ const formatDuration = (duration) => (duration < 60 ? '0:' : '') + [
  */
 
 const formatYTDuration = (duration) => {
-  let hours, minutes, seconds;
-  [ , hours = 0, minutes = 0, seconds = 0 ] = /^PT(?:([0-9]+)H)?(?:([0-9]+)M)?(?:([0-9]+)S)?/.exec(duration);
+  if (typeof duration !== 'string' || duration.trim() === '') return null;
+
+  const match = /^PT(?:([0-9]+)H)?(?:([0-9]+)M)?(?:([0-9]+)S)?$/.exec(duration);
+  if (!match) return null;
+
+  const [ , hours = 0, minutes = 0, seconds = 0 ] = match;
   return ((+hours) * 3600) + ((+minutes) * 60) + (+seconds);
 }
 
