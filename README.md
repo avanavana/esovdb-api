@@ -1,5 +1,6 @@
-# Airtable API Proxy
-This service has two main roles:  In its public facing role, it sets up a cache proxy API server for querying the [Earth Science Online Video Database](http://www.esovdb.org), (as a proxy for the Airtable API, whose reponses are cached, avoiding the extreme delay caused by Airtable's rate-limiting and pagination, when dealing with thousands of records).  In its private role, this service provides methods for syncing new submissions and updates to the ESOVDB (on Airtable, using Airtable's automation triggers and scripting) with a Zotero library (also available to the public [here](https://www.zotero.org/groups/2764885/esovdb/library)).  Once items are synced to Zotero, the Zotero key and version number they receive from that program are then back-synced to the ESOVDB, and any Zotero collections for the video series or topic needed are created, and each video assigned to its respective collections.  Because Airtable's automation methods are restricted to processing a single created record or single updated record at a time, it was necessary to include employ Redis in the project, which serves to temporarily hold all content in the current batch, before clearing it for the next.  As `onUpdateRecord` events can be so unpredictable as to be nearly non-deterministic, due to updates to one or many records affecting records up and downstream of them, it was necessary to handle batch processing of `onUpdateRecord` events from Airtable using streams and the Observer/Observable pattern. The service also includes methods for syncing with Zotero directly from updates or new records in Airtable, which can be set up with Airtable's automation (see below).  This implementation additionally posts new submissions from Airtable to a 'What's New' channel on the [ESOVDB Discord](https://discord.gg/PNPYGZ54Ue) using webhooks and posts a new tweet from [@esovdb](https://www.twitter.com/esovdb).
+# ESOVDB API
+
+This repository is the back end API server for the Earth Science Online Video Database.  This service has two main roles:  In its public facing role, it sets up a cache proxy API server for querying the [Earth Science Online Video Database](http://www.esovdb.org), (as a proxy for the Airtable API, whose reponses are cached, avoiding the extreme delay caused by Airtable's rate-limiting and pagination, when dealing with thousands of records).  In its private role, this service provides methods for syncing new submissions and updates to the ESOVDB (on Airtable, using Airtable's automation triggers and scripting) with a [Zotero library](https://www.zotero.org/groups/2764885/esovdb/library).  Once items are synced to Zotero, the Zotero key and version number they receive from that program are then back-synced to the ESOVDB, and any Zotero collections for the video series or topic needed are created, and each video assigned to its respective collections.  Because Airtable's automation methods are restricted to processing a single created record or single updated record at a time, it was necessary to include employ Redis in the project, which serves to temporarily hold all content in the current batch, before clearing it for the next.  As `onUpdateRecord` events can be so unpredictable as to be nearly non-deterministic, due to updates to one or many records affecting records up and downstream of them, it was necessary to handle batch processing of `onUpdateRecord` events from Airtable using streams and the Observer/Observable pattern. The service also includes methods for syncing with Zotero directly from updates or new records in Airtable, which can be set up with Airtable's automation (see below).  This implementation additionally posts new submissions from Airtable to a 'What's New' channel on the [ESOVDB Discord](https://discord.gg/PNPYGZ54Ue) using webhooks and posts a new tweet from [@esovdb](https://www.twitter.com/esovdb).
 
 Built as the server-side of [avanavana/zotero-esovdb](https://github.com/avanavana/zotero-esovdb).
 
@@ -10,6 +11,7 @@ BYODOTENV with your Airtable API key and base ID, and adapt to your own fields, 
 I built a set of helper functions for transforming select Airtable data into Zotero-compatible formats (again, the ultimate destination in my own usage), as well as some utility functions and middleware to either whitelist or blacklist IPs, which you can keep as a space-separated string with wildcards, also in your dotenv.  Most files have inline, JSDoc-style documentation.
 
 ## Usage
+
 Run with `npm start` (or better yet, install [`pm2`](https://github.com/Unitech/pm2), my preference, or [`nodemon`](https://www.npmjs.com/package/nodemon) and run it with those to keep it alive).
 
 - Cache proxy with rate limiting via [`bottleneck`](https://github.com/SGrondin/bottleneck)
@@ -22,25 +24,32 @@ Run with `npm start` (or better yet, install [`pm2`](https://github.com/Unitech/
 - Syncs videos and series created, updated, and deleted in Airtable with equivalent items and collections in a public Zotero library.
 
 ## Consuming the ESOVDB API
+
 If you wish to query the ESOVDB using this API, you can do so using [Rapid API](https://rapidapi.com/the-earth-science-online-video-database-the-earth-science-online-video-database-default/api/the-earth-science-online-video-database/).  A free plan offers limited retrieval of all records, while a "PRO" plan offers far fewer limitations on quota/rate, and alwasy returns fresh (non-cached) results.
 
 ## Adapting this project to your own
+
 I built this for my own needs, and the following are the endpoints I use, but these can be removed or adapted to your own needs for any Airtable implementation alone, or with additional synchronization to Zotero, as I do.
 
 ### `GET` /videos
+
 Retrieves all active videos in the entire ESOVDB database.  Much quicker than the `/videos/query` endpoint below, as this view is usually cached.  Premium API users can provide a special header in their request to prevent the cached version from loading (never any older than 24 hours, and only videos modified in the previous 24 hours, ever need to be retrieved fresh)
 
 ### `GET` /videos/query/:pg?
+
 Retrieves a list of records, with the option of several query parameters, from the Videos table on the ESOVDB Airtable, page by page, as Airtable requires, using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting, and sends the final result of all requested records as JSON. All requests are cached (cache expiration is parameterized) using the server's file system, according to the structure of the query and any additional URL params. The `/:pg?` parameter, as indicated, is optional, and allows you to query a specific page of the results, skipping all others.Gets
 
 **Additional URL Query Params:**
+
 - `maxRecords` – Synonymous with the Airtable API's `maxRecords` param—limits the total results returned. (default: all records)
 - `pageSize` – Synonymous with the Airtable API's `pageSize` param—the number of records to return with each paged request to the Airtable API.  Airtable limits this to 100 per page. (default: 100 records)
 - `modifiedAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records modified after a certain date (most date strings work, uses `Date.parse()`)
 - `createdAfter` – Creates a `filterByFormula` param in the Airtable API request that retrieves records created after a certain date (most date strings work, uses `Date.parse()`)
 
 ### `POST` /:table/update
+
 Creates one or more records on a specified `table` on Airtable (e.g. `/videos/create` is the endpoint you'd use to create a new video).  The body of this post request should be an array of objects formatted as per the Airtable API spec:
+
 ```javascript
 [
   { 
@@ -52,10 +61,13 @@ Creates one or more records on a specified `table` on Airtable (e.g. `/videos/cr
   ...
 ]
 ```
+
 Processes as many records as you give it in batches of 50, as Airtable requires, using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
 
 ### `PUT` /:table/update
+
 Updates one or more records on a specified `table` on Airtable (e.g. `/videos/update` is the endpoint you'd use to update an existing video).  The body of this post request should be an array of objects formatted as per the Airtable API spec:
+
 ```javascript
 [
   { 
@@ -68,13 +80,14 @@ Updates one or more records on a specified `table` on Airtable (e.g. `/videos/up
   ...
 ]
 ```
+
 Processes as many records as you give it in batches of 50, as Airtable requires, using [`bottleneck`](https://github.com/SGrondin/bottleneck) to avoid rate-limiting.
 
 ### `POST` /zotero/:kind
-Adds items or collections (e.g. `/zotero/items` or `/zotero/collections`) to a Zotero Library, up to 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically add items to the public ESOVDB Zotero library every time a new record is created in Airtable.  Each successfully created record in Airtable is then processed with a message template and posted by webhook/bot on the ESOVDB Discord server. (https://discord.gg/hnyD7PCk) My implementation further back-syncs the newly created item in Zotero with the originating table in Airtable, so that each record in Airtable has a Zotero key and version that I can use to track updates later.  Additionally, the public ESOVDB library on Zotero contains topic and series subcollections, for each topic and series in the ESOVDB–these are automatically created when this endpoint is hit with a new series (the list of ESOVDB topics isn't changing), and videos with existing series get filed into their correct topic and series subcollections.
+
+Adds items or collections (e.g. `/zotero/items` or `/zotero/collections`) to a Zotero Library, up to 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically add items to the public ESOVDB Zotero library every time a new record is created in Airtable.  Each successfully created record in Airtable is then processed with a message template and posted by webhook/bot on the [ESOVDB Discord server](https://discord.gg/hnyD7PCk).  My implementation further back-syncs the newly created item in Zotero with the originating table in Airtable, so that each record in Airtable has a Zotero key and version that I can use to track updates later.  Additionally, the public ESOVDB library on Zotero contains topic and series subcollections, for each topic and series in the ESOVDB–these are automatically created when this endpoint is hit with a new series (the list of ESOVDB topics isn't changing), and videos with existing series get filed into their correct topic and series subcollections.
 
 **Sample Airtable Script for Automation**
-
 *Note: when using Airtable's automations, you will have to set up your input.config() object to match all the fields you want to send in the Airtable script below*
 
 ```javascript
@@ -133,6 +146,7 @@ if (data.status === 'active') {
 ```
 
 ### `PUT` /zotero/:kind
+
 Updates items or collections (e.g. `/zotero/items` or `/zotero/collections`) in a Zotero Library, up to 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically update items in the public ESOVDB Zotero library every time a record is updated in Airtable.
 
 **Sample Airtable Script for Automation**
@@ -196,6 +210,7 @@ if (data.status === 'active') {
 ```
 
 ### `DELETE` /zotero/:kind
+
 Removes items or collections (e.g. `/zotero/items` or `/zotero/collections`) from a Zotero Library, up to 50 at a time, at a maximum of 6/min, which is the Zotero API's limit.  I use this endpoint combined with Airtable's automations feature to automatically remove items from the public ESOVDB Zotero library every time a record is deleted in Airtable.
 
 **Sample Airtable Script for Automation**
@@ -267,4 +282,4 @@ Twitter: [@esovdb](https://www.twitter.com/esovdb)
 Discord: [Join ESOVDB Server](https://discord.gg/PNPYGZ54Ue)
 
 MIT
-Copyright (c) 2020-2022 Avana Vana 
+Copyright (c) 2020-2022 Avana Vana
