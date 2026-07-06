@@ -102,6 +102,101 @@ const fetchYouTubeChannelName = async (channelId) => {
   return title;
 }
 
+const smartFilterDefaults = {
+  'Smart Filtering': false,
+  'Smart Filter Mode': 'Metadata',
+  'Smart Filter Exclude Threshold': 0.5,
+  'Smart Filter Auto-Include Threshold': 0.85,
+  'Smart Filter Notes': ''
+};
+
+const smartFilterFieldMap = new Map([
+  [ 'smartFiltering', 'Smart Filtering' ],
+  [ 'smartFilterMode', 'Smart Filter Mode' ],
+  [ 'smartFilterExcludeThreshold', 'Smart Filter Exclude Threshold' ],
+  [ 'smartFilterAutoIncludeThreshold', 'Smart Filter Auto-Include Threshold' ],
+  [ 'smartFilterNotes', 'Smart Filter Notes' ]
+]);
+
+const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+
+const normalizeBoolean = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return Boolean(value);
+};
+
+const normalizeSmartFilterNumber = (value, fieldName) => {
+  const number = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > 1) {
+    throw new Error(`${fieldName} must be a number from 0.0 to 1.0.`);
+  }
+  return number;
+};
+
+const normalizeSmartFilterMode = (value) => {
+  if (!value) return smartFilterDefaults['Smart Filter Mode'];
+  if (value === 'Metadata' || value === 'Metadata + Transcript') return value;
+  throw new Error('Smart Filter Mode must be "Metadata" or "Metadata + Transcript".');
+};
+
+const normalizeSmartFilterFields = (input = {}, includeDefaults = false) => {
+  const fields = includeDefaults ? Object.assign({}, smartFilterDefaults) : {};
+
+  for (const [ apiField, airtableField ] of smartFilterFieldMap.entries()) {
+    if (hasOwn(input, apiField)) fields[airtableField] = input[apiField];
+    if (hasOwn(input, airtableField)) fields[airtableField] = input[airtableField];
+  }
+
+  if (hasOwn(fields, 'Smart Filtering')) {
+    fields['Smart Filtering'] = normalizeBoolean(fields['Smart Filtering']);
+  }
+
+  if (hasOwn(fields, 'Smart Filter Mode')) {
+    fields['Smart Filter Mode'] = normalizeSmartFilterMode(fields['Smart Filter Mode']);
+  }
+
+  if (hasOwn(fields, 'Smart Filter Exclude Threshold')) {
+    fields['Smart Filter Exclude Threshold'] = normalizeSmartFilterNumber(
+      fields['Smart Filter Exclude Threshold'],
+      'Smart Filter Exclude Threshold'
+    );
+  }
+
+  if (hasOwn(fields, 'Smart Filter Auto-Include Threshold')) {
+    fields['Smart Filter Auto-Include Threshold'] = normalizeSmartFilterNumber(
+      fields['Smart Filter Auto-Include Threshold'],
+      'Smart Filter Auto-Include Threshold'
+    );
+  }
+
+  if (hasOwn(fields, 'Smart Filter Notes')) {
+    fields['Smart Filter Notes'] = String(fields['Smart Filter Notes'] || '');
+  }
+
+  return fields;
+};
+
+const normalizeWatchlistUpdateFields = (input = {}) => {
+  const fields = Object.assign({}, input);
+  const smartFilteringRequested =
+    hasOwn(input, 'smartFiltering') || hasOwn(input, 'Smart Filtering');
+  const smartFilteringEnabled = smartFilteringRequested
+    ? normalizeBoolean(hasOwn(input, 'smartFiltering') ? input.smartFiltering : input['Smart Filtering'])
+    : false;
+  const smartFilterFields = normalizeSmartFilterFields(input, smartFilteringEnabled);
+
+  for (const apiField of smartFilterFieldMap.keys()) {
+    delete fields[apiField];
+  }
+
+  for (const airtableField of smartFilterFieldMap.values()) {
+    delete fields[airtableField];
+  }
+
+  return Object.assign(fields, smartFilterFields);
+};
+
 /** @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
 const airtableRateLimit = 1005 / 5;
 
@@ -1267,7 +1362,8 @@ module.exports = {
         'Type': type,
         'ID': sourceId,
         'Duration': input.length || 'any',
-        'Published After': publishedAfter
+        'Published After': publishedAfter,
+        ...normalizeSmartFilterFields(input, true)
       };
 
       const created = await table.create(payload);
@@ -1315,7 +1411,7 @@ module.exports = {
       }
       
       if (!fields || typeof fields !== 'object') throw new Error('Invalid fields object.');
-      const updated = await table.update(recordId, fields);
+      const updated = await table.update(recordId, normalizeWatchlistUpdateFields(fields));
       if (opts.checkUpdatedItem) await dispatchWatchlistRunner({ watchlistRecordId: updated.id });
       return updated;
     },
