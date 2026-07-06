@@ -107,7 +107,8 @@ const smartFilterDefaults = {
   'Smart Filter Mode': 'Metadata',
   'Smart Filter Exclude Threshold': 0.5,
   'Smart Filter Auto-Include Threshold': 0.85,
-  'Smart Filter Notes': ''
+  'Smart Filter Source Prompt': '',
+  'Smart Filter System Prompt': ''
 };
 
 const smartFilterFieldMap = new Map([
@@ -115,7 +116,15 @@ const smartFilterFieldMap = new Map([
   [ 'smartFilterMode', 'Smart Filter Mode' ],
   [ 'smartFilterExcludeThreshold', 'Smart Filter Exclude Threshold' ],
   [ 'smartFilterAutoIncludeThreshold', 'Smart Filter Auto-Include Threshold' ],
-  [ 'smartFilterNotes', 'Smart Filter Notes' ]
+  [ 'smartFilterSourcePrompt', 'Smart Filter Source Prompt' ],
+  [ 'smartFilterSystemPrompt', 'Smart Filter System Prompt' ],
+  [ 'smartFilterNotes', 'Smart Filter Source Prompt' ],
+  [ 'smartFilterPrompt', 'Smart Filter System Prompt' ]
+]);
+
+const smartFilterLegacyFieldMap = new Map([
+  [ 'Smart Filter Notes', 'Smart Filter Source Prompt' ],
+  [ 'Smart Filter Prompt', 'Smart Filter System Prompt' ]
 ]);
 
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -148,6 +157,10 @@ const normalizeSmartFilterFields = (input = {}, includeDefaults = false) => {
     if (hasOwn(input, airtableField)) fields[airtableField] = input[airtableField];
   }
 
+  for (const [ legacyField, airtableField ] of smartFilterLegacyFieldMap.entries()) {
+    if (hasOwn(input, legacyField)) fields[airtableField] = input[legacyField];
+  }
+
   if (hasOwn(fields, 'Smart Filtering')) {
     fields['Smart Filtering'] = normalizeBoolean(fields['Smart Filtering']);
   }
@@ -170,8 +183,12 @@ const normalizeSmartFilterFields = (input = {}, includeDefaults = false) => {
     );
   }
 
-  if (hasOwn(fields, 'Smart Filter Notes')) {
-    fields['Smart Filter Notes'] = String(fields['Smart Filter Notes'] || '');
+  if (hasOwn(fields, 'Smart Filter Source Prompt')) {
+    fields['Smart Filter Source Prompt'] = String(fields['Smart Filter Source Prompt'] || '');
+  }
+
+  if (hasOwn(fields, 'Smart Filter System Prompt')) {
+    fields['Smart Filter System Prompt'] = String(fields['Smart Filter System Prompt'] || '');
   }
 
   return fields;
@@ -192,6 +209,10 @@ const normalizeWatchlistUpdateFields = (input = {}) => {
 
   for (const airtableField of smartFilterFieldMap.values()) {
     delete fields[airtableField];
+  }
+
+  for (const legacyField of smartFilterLegacyFieldMap.keys()) {
+    delete fields[legacyField];
   }
 
   return Object.assign(fields, smartFilterFields);
