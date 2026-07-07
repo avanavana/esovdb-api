@@ -402,6 +402,84 @@ app.route('/watch')
     }
   );
 
+app.route('/watch/smart-filter/dry-run')
+  .post(
+    [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ],
+    async (req, res) => {
+      console.log('Performing watch/smart-filter/dry-run request...');
+
+      try {
+        const payload = await esovdb.watchlist.requestSmartFilterDryRun(req.body || {});
+        res.status(202).send(payload);
+      } catch (err) {
+        const message = String(err && err.message ? err.message : err);
+        console.error('[ERROR] watch/smart-filter/dry-run:', err);
+        res.status(500).send({
+          ok: false,
+          code: 'SMART_FILTER_DRY_RUN_REQUEST_FAILED',
+          message
+        });
+      }
+    }
+  )
+  .options(cors());
+
+app.route('/watch/smart-filter/dry-run/:dryRunId')
+  .get(
+    [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ],
+    async (req, res) => {
+      console.log('Performing watch/smart-filter/dry-run/get request...');
+
+      try {
+        const payload = await esovdb.watchlist.getSmartFilterDryRun(req.params.dryRunId);
+        res.status(200).send(payload);
+      } catch (err) {
+        const message = String(err && err.message ? err.message : err);
+        console.error('[ERROR] watch/smart-filter/dry-run/get:', err);
+
+        if (err && err.code === 'SMART_FILTER_DRY_RUN_NOT_FOUND') {
+          return res.status(404).send({
+            ok: false,
+            code: err.code,
+            message
+          });
+        }
+
+        res.status(500).send({
+          ok: false,
+          code: 'SMART_FILTER_DRY_RUN_GET_FAILED',
+          message
+        });
+      }
+    }
+  )
+  .options(cors());
+
+app.route('/watch/smart-filter/dry-run/:dryRunId/result')
+  .post(
+    [ middleware.auth, middleware.validateReq, express.urlencoded({ extended: true }), express.json() ],
+    async (req, res) => {
+      console.log('Performing watch/smart-filter/dry-run/result request...');
+
+      try {
+        const payload = await esovdb.watchlist.saveSmartFilterDryRunResult(
+          req.params.dryRunId,
+          req.body || {}
+        );
+        res.status(200).send(payload);
+      } catch (err) {
+        const message = String(err && err.message ? err.message : err);
+        console.error('[ERROR] watch/smart-filter/dry-run/result:', err);
+        res.status(500).send({
+          ok: false,
+          code: 'SMART_FILTER_DRY_RUN_RESULT_FAILED',
+          message
+        });
+      }
+    }
+  )
+  .options(cors());
+
 /**
  *  API endpoint for retrieving a single watchlist item from the ESOVDB
  *  @requires esovdb

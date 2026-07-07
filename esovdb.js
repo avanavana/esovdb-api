@@ -6,10 +6,12 @@
  */
 
 const dotenv = require('dotenv').config();
+const crypto = require('crypto');
 const Airtable = require('airtable');
 const axios = require('axios');
 const Bottleneck = require('bottleneck');
 const cache = require('./cache');
+const { db } = require('./batch');
 const {
   formatDuration,
   formatDate,
@@ -79,6 +81,15 @@ const dispatchWatchlistRunner = async (inputs = {}) => {
   });
 
   if (res.status !== 204) throw new Error(`GitHub workflow dispatch failed (${res.status}): ${JSON.stringify(res.data)}`);
+};
+
+const getWatchlistWorkflowUrl = () => {
+  const owner = process.env.GITHUB_OWNER;
+  const repo = process.env.GITHUB_REPO;
+  const workflowId = process.env.GITHUB_WORKFLOW_ID;
+
+  if (!owner || !repo || !workflowId) return '';
+  return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows/${encodeURIComponent(workflowId)}`;
 };
 
 const fetchYouTubeChannelName = async (channelId) => {
@@ -208,6 +219,78 @@ const normalizeWatchlistUpdateFields = (input = {}) => {
   }
 
   return Object.assign(fields, smartFilterFields);
+};
+
+const smartFilterDryRunTtlSeconds = () => {
+  const configured = Number(process.env.SMART_FILTER_DRY_RUN_TTL_SECONDS || '');
+  return Number.isInteger(configured) && configured > 0 ? configured : 60 * 60 * 24;
+};
+
+const getSmartFilterDryRunKey = (dryRunId) => `watchlist:smart-filter:dry-run:${dryRunId}`;
+
+const createSmartFilterDryRunId = () => `sfdr_${crypto.randomBytes(12).toString('hex')}`;
+
+const normalizeOptionalThresholdInput = (input, fieldName) => {
+  if (typeof input === 'undefined' || input === null || input === '') return null;
+  const value = Number(input);
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${fieldName} must be a number from 0.0 to 1.0.`);
+  }
+  return String(value);
+};
+
+const normalizeOptionalPositiveIntegerInput = (input, fieldName) => {
+  if (typeof input === 'undefined' || input === null || input === '') return null;
+  const value = Number(input);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${fieldName} must be a positive integer.`);
+  }
+  return String(value);
+};
+
+const buildSmartFilterDryRunWorkflowInputs = (dryRunId, input = {}) => {
+  const inputs = {
+    smartFilterDryRun: 'true',
+    smartFilterDryRunId: dryRunId
+  };
+
+  if (input.watchlistRecordId) inputs.watchlistRecordId = String(input.watchlistRecordId).trim();
+
+  const excludeThreshold = normalizeOptionalThresholdInput(
+    input.smartFilterExcludeThreshold,
+    'smartFilterExcludeThreshold'
+  );
+  const autoIncludeThreshold = normalizeOptionalThresholdInput(
+    input.smartFilterAutoIncludeThreshold,
+    'smartFilterAutoIncludeThreshold'
+  );
+  const candidateLimit = normalizeOptionalPositiveIntegerInput(
+    input.smartFilterCandidateLimit,
+    'smartFilterCandidateLimit'
+  );
+
+  if (excludeThreshold !== null) inputs.smartFilterExcludeThreshold = excludeThreshold;
+  if (autoIncludeThreshold !== null) inputs.smartFilterAutoIncludeThreshold = autoIncludeThreshold;
+  if (candidateLimit !== null) inputs.smartFilterCandidateLimit = candidateLimit;
+
+  if (typeof input.smartFilterSourcePrompt === 'string' && input.smartFilterSourcePrompt.trim()) {
+    inputs.smartFilterSourcePrompt = input.smartFilterSourcePrompt;
+  }
+
+  return inputs;
+};
+
+const storeSmartFilterDryRun = async (dryRunId, payload) => {
+  await db.set(getSmartFilterDryRunKey(dryRunId), JSON.stringify(payload), {
+    ex: smartFilterDryRunTtlSeconds()
+  });
+};
+
+const readSmartFilterDryRun = async (dryRunId) => {
+  const raw = await db.get(getSmartFilterDryRunKey(dryRunId));
+  if (!raw) return null;
+  if (typeof raw === 'string') return JSON.parse(raw);
+  return raw;
 };
 
 /** @constant {number} airtableRateLimit - Minimum time in ms to wait between requests using {@link Bottleneck} (default: 201ms ⋍ just under 5 req/s) */
@@ -1427,6 +1510,79 @@ module.exports = {
       const updated = await table.update(recordId, normalizeWatchlistUpdateFields(fields));
       if (opts.checkUpdatedItem) await dispatchWatchlistRunner({ watchlistRecordId: updated.id });
       return updated;
+    },
+
+    requestSmartFilterDryRun: async (input = {}) => {
+      const dryRunId = createSmartFilterDryRunId();
+      const workflowInputs = buildSmartFilterDryRunWorkflowInputs(dryRunId, input);
+      const requestedAt = new Date().toISOString();
+      const workflowUrl = getWatchlistWorkflowUrl();
+
+      const queuedPayload = {
+        ok: true,
+        dryRunId,
+        status: 'Queued',
+        requestedAt,
+        completedAt: null,
+        runUrl: workflowUrl,
+        workflowUrl,
+        request: {
+          watchlistRecordId: workflowInputs.watchlistRecordId || '',
+          smartFilterExcludeThreshold: workflowInputs.smartFilterExcludeThreshold || null,
+          smartFilterAutoIncludeThreshold: workflowInputs.smartFilterAutoIncludeThreshold || null,
+          smartFilterCandidateLimit: workflowInputs.smartFilterCandidateLimit || null,
+          smartFilterSourcePrompt: workflowInputs.smartFilterSourcePrompt || ''
+        }
+      };
+
+      await storeSmartFilterDryRun(dryRunId, queuedPayload);
+
+      try {
+        await dispatchWatchlistRunner(workflowInputs);
+      } catch (err) {
+        const message = String(err && err.message ? err.message : err);
+        await storeSmartFilterDryRun(dryRunId, Object.assign({}, queuedPayload, {
+          ok: false,
+          status: 'Failed',
+          completedAt: new Date().toISOString(),
+          error: message
+        }));
+        throw err;
+      }
+
+      return queuedPayload;
+    },
+
+    getSmartFilterDryRun: async (dryRunId) => {
+      const id = String(dryRunId || '').trim();
+      if (!id) throw new Error('Missing smart filter dry run ID.');
+
+      const payload = await readSmartFilterDryRun(id);
+      if (!payload) {
+        const err = new Error(`Smart filter dry run not found: ${id}`);
+        err.code = 'SMART_FILTER_DRY_RUN_NOT_FOUND';
+        throw err;
+      }
+
+      return payload;
+    },
+
+    saveSmartFilterDryRunResult: async (dryRunId, result = {}) => {
+      const id = String(dryRunId || '').trim();
+      if (!id) throw new Error('Missing smart filter dry run ID.');
+
+      const existing = await readSmartFilterDryRun(id);
+      const now = new Date().toISOString();
+      const status = result.status === 'Failed' ? 'Failed' : 'Completed';
+      const payload = Object.assign({}, existing || {}, result, {
+        ok: status !== 'Failed',
+        dryRunId: id,
+        status,
+        completedAt: result.completedAt || now
+      });
+
+      await storeSmartFilterDryRun(id, payload);
+      return payload;
     },
 
     /**

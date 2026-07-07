@@ -27,6 +27,32 @@ Run with `npm start` (or better yet, install [`pm2`](https://github.com/Unitech/
 
 If you wish to query the ESOVDB using this API, you can do so using [Rapid API](https://rapidapi.com/the-earth-science-online-video-database-the-earth-science-online-video-database-default/api/the-earth-science-online-video-database/).  A free plan offers limited retrieval of all records, while a "PRO" plan offers far fewer limitations on quota/rate, and alwasy returns fresh (non-cached) results.
 
+## Watchlist Smart Filter Dry Runs
+
+The API can queue a GitHub Actions smart-filter dry run and store the JSON result in Redis for Postman-style polling. Smart filtering still runs in the watchlist runner; the API only dispatches the workflow and stores the callback result.
+
+Queue a dry run:
+
+```bash
+curl -X POST "$ESOVDB_API_BASE_URL/watch/smart-filter/dry-run" \
+  -H "x-esovdb-key: $ESOVDB_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "watchlistRecordId": "rec...",
+    "smartFilterCandidateLimit": 10,
+    "smartFilterExcludeThreshold": 0.5,
+    "smartFilterAutoIncludeThreshold": 0.85,
+    "smartFilterSourcePrompt": "Prioritize lectures and field-trip videos."
+  }'
+```
+
+Poll the result using the returned `dryRunId`:
+
+```bash
+curl "$ESOVDB_API_BASE_URL/watch/smart-filter/dry-run/sfdr_..." \
+  -H "x-esovdb-key: $ESOVDB_KEY"
+```
+
 ## Adapting this project to your own
 
 I built this for my own needs, and the following are the endpoints I use, but these can be removed or adapted to your own needs for any Airtable implementation alone, or with additional synchronization to Zotero, as I do.
