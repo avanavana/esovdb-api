@@ -123,6 +123,9 @@ const smartFilterDefaults = {
 
 const smartFilterFieldMap = new Map([
   [ 'smartFiltering', 'Smart Filtering' ],
+  [ 'smartFilter', 'Smart Filtering' ],
+  [ 'smartFilterEnabled', 'Smart Filtering' ],
+  [ 'useSmartFiltering', 'Smart Filtering' ],
   [ 'smartFilterMode', 'Smart Filter Mode' ],
   [ 'smartFilterExcludeThreshold', 'Smart Filter Exclude Threshold' ],
   [ 'smartFilterAutoIncludeThreshold', 'Smart Filter Auto-Include Threshold' ],
@@ -138,7 +141,12 @@ const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key
 
 const normalizeBoolean = (value) => {
   if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if ([ 'true', 'yes', 'y', '1', 'on', 'checked' ].includes(normalized)) return true;
+    if ([ 'false', 'no', 'n', '0', 'off', 'unchecked', '' ].includes(normalized)) return false;
+  }
   return Boolean(value);
 };
 

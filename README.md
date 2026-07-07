@@ -31,6 +31,8 @@ If you wish to query the ESOVDB using this API, you can do so using [Rapid API](
 
 The API can queue a GitHub Actions smart-filter dry run and store the JSON result in Redis for Postman-style polling. Smart filtering still runs in the watchlist runner; the API only dispatches the workflow and stores the callback result.
 
+When adding Watchlist sources, smart filtering is opt-in. Send `smartFiltering: true` to check the Airtable `Smart Filtering` checkbox; common string values like `"true"`, `"yes"`, `"1"`, and `"on"` are accepted for iOS Shortcut/form clients.
+
 Queue a dry run:
 
 ```bash
