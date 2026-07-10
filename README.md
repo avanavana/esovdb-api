@@ -33,6 +33,8 @@ The API can queue a GitHub Actions smart-filter dry run and store the JSON resul
 
 When adding Watchlist sources, smart filtering is opt-in. Send `smartFiltering: true` to check the Airtable `Smart Filtering` checkbox; common string values like `"true"`, `"yes"`, `"1"`, and `"on"` are accepted for iOS Shortcut/form clients.
 
+Real watchlist runs dispatched by the API are marked with `Trigger Source: API` on the Admin base `Watchlist Runs` record.
+
 Queue a dry run:
 
 ```bash

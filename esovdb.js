@@ -51,6 +51,7 @@ const tables = new Map([
  *  @function dispatchWatchlistRunner
  *  @param {Object} inputs
  *  @param {string=} inputs.watchlistRecordId Airtable record ID to check in this run
+ *  @param {string=} inputs.watchlistRunTriggerSource Trigger metadata for the Watchlist Run record
  *  @returns {Promise<void>}
  */
 
@@ -1473,7 +1474,12 @@ module.exports = {
       const created = await table.create(payload);
       console.log(`[DONE] Created watchlist source ${created.id} with Name=${payload.Name}, Status=${payload.Status}, Type=${payload.Type}, ID=${payload.ID}, Duration=${payload.Duration}, Published After=${payload['Published After']}`);
       
-      if (!deferProcessing) await dispatchWatchlistRunner({ watchlistRecordId: created.id });
+      if (!deferProcessing) {
+        await dispatchWatchlistRunner({
+          watchlistRecordId: created.id,
+          watchlistRunTriggerSource: 'API'
+        });
+      }
       return created;
     },
 
@@ -1516,7 +1522,12 @@ module.exports = {
       
       if (!fields || typeof fields !== 'object') throw new Error('Invalid fields object.');
       const updated = await table.update(recordId, normalizeWatchlistUpdateFields(fields));
-      if (opts.checkUpdatedItem) await dispatchWatchlistRunner({ watchlistRecordId: updated.id });
+      if (opts.checkUpdatedItem) {
+        await dispatchWatchlistRunner({
+          watchlistRecordId: updated.id,
+          watchlistRunTriggerSource: 'API'
+        });
+      }
       return updated;
     },
 
