@@ -26,6 +26,12 @@ const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
 }).base(process.env.AIRTABLE_BASE_ID);
 
+const adminBase = new Airtable({
+  apiKey: process.env.AIRTABLE_ADMIN_API_KEY || process.env.AIRTABLE_API_KEY,
+}).base(process.env.AIRTABLE_ADMIN_BASE_ID || 'appiY4BA1rAyc3nT9');
+
+const watchlistCandidatesTable = process.env.AIRTABLE_WATCHLIST_CANDIDATES_TABLE || 'Watchlist Submission Candidates';
+
 /** @constant {Map} tables - Maps request table params to their proper names on the ESOVDB */
 const tables = new Map([
   [ 'videos', 'Videos' ],
@@ -312,6 +318,37 @@ const regexYT = /^(?!rec)(?![\w\-]{12,})(?:.*youtu\.be\/|.*v=)?([\w\-]{10,12})&?
 const regexYTVideoId = /[\w\-]{10,12}/;
 
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
+
+const getFirstCellValue = (value) => Array.isArray(value) ? value[0] : value;
+
+const getOverturnedClassifierReason = (originalReason) => {
+  const normalizedReason = String(originalReason || '').trim();
+  return normalizedReason
+    ? `Overturned classifier decision. (Original exclusion reason: ${normalizedReason})`
+    : 'Overturned classifier decision.';
+};
+
+const findSubmissionByCandidateId = async (candidateId) => {
+  const escapedCandidateId = escapeAirtableFormulaString(candidateId);
+  const records = await base('Submissions')
+    .select({
+      maxRecords: 1,
+      filterByFormula: `{Candidate ID}='${escapedCandidateId}'`
+    })
+    .firstPage();
+
+  return records && records.length ? records[0] : null;
+};
+
+const updateOverturnedCandidate = async (candidate, submissionRecordId, classifierReason) => {
+  await rateLimiter.wrap(
+    adminBase(watchlistCandidatesTable).update(candidate.id, {
+      'Classifier Result': 'Include',
+      'Classifier Reason': classifierReason,
+      'Submission Record ID': submissionRecordId
+    })
+  );
+};
 
 /** @constant {Map} formatFields - Maps each format, as passed in the URL query params to a list of fields that Airtable should retrieve, for that format. */
 const formatFields = new Map([
@@ -1225,7 +1262,7 @@ module.exports = {
     }
   },
   
-  addSubmissionFromYouTubeVideo: async (video, submittedBy = 'ESOVDB API', submissionSource = 'ESOVDB API') => {
+  addSubmissionFromYouTubeVideo: async (video, submittedBy = 'ESOVDB API', submissionSource = 'ESOVDB API', extraFields = {}) => {
     const created = await rateLimiter.wrap(
       base('Submissions').create({
         'Title': video.title || '',
@@ -1238,7 +1275,8 @@ module.exports = {
         'YouTube Channel Title': video.channel || '',
         'YouTube Channel ID': video.channelId || '',
         'Submission Source': submissionSource,
-        'Submitted by': submittedBy || ''
+        'Submitted by': submittedBy || '',
+        ...extraFields
       })
     );
 
@@ -1288,6 +1326,128 @@ module.exports = {
   },
   
   watchlist: {
+
+    includeExcludedCandidate: async (candidateId) => {
+      const normalizedCandidateId = String(candidateId || '').trim();
+      if (!/^rec[a-zA-Z0-9]{14}$/.test(normalizedCandidateId)) {
+        const err = new Error('Invalid Watchlist Submission Candidate record ID.');
+        err.code = 'WATCHLIST_CANDIDATE_INVALID';
+        throw err;
+      }
+
+      const lockKey = `lock:watchlist:smart-filter:candidate:${normalizedCandidateId}`;
+      const lock = await db.set(lockKey, String(process.pid), { nx: true, ex: 60 });
+
+      if (!lock) {
+        const err = new Error('This candidate override is already being processed.');
+        err.code = 'WATCHLIST_CANDIDATE_OVERRIDE_IN_PROGRESS';
+        throw err;
+      }
+
+      try {
+        const candidate = await adminBase(watchlistCandidatesTable).find(normalizedCandidateId);
+        if (!candidate) {
+          const err = new Error(`Watchlist submission candidate not found: ${normalizedCandidateId}`);
+          err.code = 'WATCHLIST_CANDIDATE_NOT_FOUND';
+          throw err;
+        }
+
+        const classifierResult = candidate.get('Classifier Result');
+        const storedSubmissionRecordId = String(candidate.get('Submission Record ID') || '').trim();
+        const originalClassifierReason = candidate.get('Classifier Reason');
+        const classifierReason = getOverturnedClassifierReason(originalClassifierReason);
+
+        if (classifierResult === 'Include' && storedSubmissionRecordId) {
+          return {
+            ok: true,
+            alreadyIncluded: true,
+            candidateRecordId: candidate.id,
+            submissionRecordId: storedSubmissionRecordId,
+            classifierReason: String(candidate.get('Classifier Reason') || '')
+          };
+        }
+
+        if (classifierResult !== 'Exclude') {
+          const err = new Error(`Candidate must have Classifier Result "Exclude"; received "${classifierResult || 'blank'}".`);
+          err.code = 'WATCHLIST_CANDIDATE_NOT_EXCLUDED';
+          throw err;
+        }
+
+        if (storedSubmissionRecordId) {
+          await updateOverturnedCandidate(candidate, storedSubmissionRecordId, classifierReason);
+          return {
+            ok: true,
+            recovered: true,
+            candidateRecordId: candidate.id,
+            submissionRecordId: storedSubmissionRecordId,
+            classifierReason
+          };
+        }
+
+        const existingSubmission = await findSubmissionByCandidateId(candidate.id);
+        if (existingSubmission) {
+          await updateOverturnedCandidate(candidate, existingSubmission.id, classifierReason);
+          return {
+            ok: true,
+            recovered: true,
+            candidateRecordId: candidate.id,
+            submissionRecordId: existingSubmission.id,
+            classifierReason
+          };
+        }
+
+        const videoId = String(candidate.get('Video ID') || '').trim();
+        const watchlistSourceRecordId = String(candidate.get('Watchlist Source Record ID') || '').trim();
+        const watchlistRunId = String(getFirstCellValue(candidate.get('Watchlist Run ID')) || '').trim();
+        const relevanceScore = candidate.get('Relevance Score');
+
+        if (!regexYTVideoId.test(videoId)) {
+          const err = new Error('Candidate is missing a valid YouTube video ID.');
+          err.code = 'WATCHLIST_CANDIDATE_VIDEO_INVALID';
+          throw err;
+        }
+
+        if (!/^rec[a-zA-Z0-9]{14}$/.test(watchlistSourceRecordId)) {
+          const err = new Error('Candidate is missing a valid Watchlist source record ID.');
+          err.code = 'WATCHLIST_CANDIDATE_SOURCE_INVALID';
+          throw err;
+        }
+
+        const { getVideo } = require('./youtube');
+        const video = await getVideo(videoId);
+        const submissionFields = {
+          'Watchlist Source': [ watchlistSourceRecordId ],
+          'Candidate ID': candidate.id,
+          'Smart Filtered': true,
+          'Smart Filter Reason': classifierReason,
+          'Smart Filter Needs Review': false
+        };
+
+        if (watchlistRunId) submissionFields['Watchlist Run ID'] = watchlistRunId;
+        if (typeof relevanceScore === 'number') submissionFields['Smart Filter Relevance Score'] = relevanceScore;
+
+        const submission = await module.exports.addSubmissionFromYouTubeVideo(
+          video,
+          'ESOVDB API',
+          'ESOVDB API Channel Watch',
+          submissionFields
+        );
+
+        await updateOverturnedCandidate(candidate, submission.id, classifierReason);
+        console.log(`Overturned smart-filter exclusion for candidate ${candidate.id}; created submission ${submission.id}.`);
+
+        return {
+          ok: true,
+          candidateRecordId: candidate.id,
+          submissionRecordId: submission.id,
+          classifierReason
+        };
+      } finally {
+        await db.del(lockKey).catch((err) => {
+          console.error(`[ERROR] Unable to release candidate override lock ${normalizedCandidateId}:`, err);
+        });
+      }
+    },
 
     /**
      *  Lists ESOVDB watchlist records.

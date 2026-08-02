@@ -57,6 +57,19 @@ curl "$ESOVDB_API_BASE_URL/watch/smart-filter/dry-run/sfdr_..." \
   -H "x-esovdb-key: $ESOVDB_KEY"
 ```
 
+## Watchlist Candidate Overrides
+
+`POST /watch/smart-filter/candidates/:candidateId/include` turns an excluded Admin-base candidate into a main-base submission and records the manual override. It is intended only for the Airtable Script Extension in the watchlist runner repository.
+
+Configure these deployment variables:
+
+- `AIRTABLE_ADMIN_API_KEY`: a token with read/write access to the Admin base; defaults to `AIRTABLE_API_KEY`
+- `AIRTABLE_ADMIN_BASE_ID`: defaults to the ESOVDB Admin base
+- `AIRTABLE_WATCHLIST_CANDIDATES_TABLE`: defaults to `Watchlist Submission Candidates`
+- `WATCHLIST_OVERRIDE_KEY`: a purpose-specific secret accepted only by this endpoint
+
+The endpoint accepts the secret in `x-esovdb-watchlist-override-key`. It validates the candidate state, uses fresh YouTube metadata, preserves the original classifier reason in the override message, links the submission to its candidate, run, and watchlist source, and repairs interrupted requests through the submission `Candidate ID` before creating a new record.
+
 ## Adapting this project to your own
 
 I built this for my own needs, and the following are the endpoints I use, but these can be removed or adapted to your own needs for any Airtable implementation alone, or with additional synchronization to Zotero, as I do.

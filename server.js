@@ -62,6 +62,16 @@ const middleware = {
       res.status(401).send('Unauthorized access. Visit https://rapidapi.com/the-earth-science-online-video-database-the-earth-science-online-video-database-default/api/the-earth-science-online-video-database for access.');
     }
   },
+
+  watchlistOverrideAuth: (req, res, next) => {
+    const configuredKey = process.env.WATCHLIST_OVERRIDE_KEY;
+    const providedKey = req.headers['x-esovdb-watchlist-override-key'];
+
+    if (!configuredKey) return res.status(503).json({ error: 'Watchlist candidate overrides are not configured.' });
+    if (providedKey === configuredKey) return next();
+
+    return res.status(401).json({ error: 'Unauthorized watchlist candidate override.' });
+  },
   
   allowCORS: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
@@ -479,6 +489,42 @@ app.route('/watch/smart-filter/dry-run/:dryRunId/result')
     }
   )
   .options(cors());
+
+app.post(
+  '/watch/smart-filter/candidates/:candidateId/include',
+  [ middleware.watchlistOverrideAuth, middleware.validateReq, express.json() ],
+  async (req, res) => {
+    console.log('Performing watch/smart-filter/candidates/include request...');
+
+    try {
+      const result = await esovdb.watchlist.includeExcludedCandidate(req.params.candidateId);
+      return res.status(200).json(result);
+    } catch (err) {
+      const conflictCodes = new Set([
+        'WATCHLIST_CANDIDATE_NOT_EXCLUDED',
+        'WATCHLIST_CANDIDATE_OVERRIDE_IN_PROGRESS'
+      ]);
+      const badRequestCodes = new Set([
+        'WATCHLIST_CANDIDATE_INVALID',
+        'WATCHLIST_CANDIDATE_VIDEO_INVALID',
+        'WATCHLIST_CANDIDATE_SOURCE_INVALID'
+      ]);
+      const status = err && err.code === 'WATCHLIST_CANDIDATE_NOT_FOUND'
+        ? 404
+        : conflictCodes.has(err && err.code)
+          ? 409
+          : badRequestCodes.has(err && err.code)
+            ? 400
+            : 500;
+
+      console.error('[ERROR] watch/smart-filter/candidates/include:', err);
+      return res.status(status).json({
+        error: err && err.message ? err.message : 'Unable to include excluded candidate.',
+        code: err && err.code ? err.code : 'WATCHLIST_CANDIDATE_OVERRIDE_FAILED'
+      });
+    }
+  }
+);
 
 /**
  *  API endpoint for retrieving a single watchlist item from the ESOVDB

@@ -1,6 +1,6 @@
 {
   "name": "esovdb-api",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Public and private API access to the Earth Science Online Video Database.",
   "homepage": "https://airtable.com/shrFBKQwGjstk7TVn",
   "author": "Avana Vana <avana@esovdb.org> (http://www.avanavana.com)",
