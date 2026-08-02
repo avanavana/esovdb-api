@@ -497,21 +497,22 @@ app.post(
     console.log('Performing watch/smart-filter/candidates/include request...');
 
     try {
-      const result = await esovdb.watchlist.includeExcludedCandidate(req.params.candidateId);
+      const result = await esovdb.watchlist.createSubmissionForOverriddenCandidate(
+        req.params.candidateId,
+        req.body || {}
+      );
       return res.status(200).json(result);
     } catch (err) {
       const conflictCodes = new Set([
-        'WATCHLIST_CANDIDATE_NOT_EXCLUDED',
         'WATCHLIST_CANDIDATE_OVERRIDE_IN_PROGRESS'
       ]);
       const badRequestCodes = new Set([
         'WATCHLIST_CANDIDATE_INVALID',
         'WATCHLIST_CANDIDATE_VIDEO_INVALID',
-        'WATCHLIST_CANDIDATE_SOURCE_INVALID'
+        'WATCHLIST_CANDIDATE_SOURCE_INVALID',
+        'WATCHLIST_CANDIDATE_REASON_REQUIRED'
       ]);
-      const status = err && err.code === 'WATCHLIST_CANDIDATE_NOT_FOUND'
-        ? 404
-        : conflictCodes.has(err && err.code)
+      const status = conflictCodes.has(err && err.code)
           ? 409
           : badRequestCodes.has(err && err.code)
             ? 400

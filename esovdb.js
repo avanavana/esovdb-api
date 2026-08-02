@@ -26,12 +26,6 @@ const base = new Airtable({
   apiKey: process.env.AIRTABLE_API_KEY,
 }).base(process.env.AIRTABLE_BASE_ID);
 
-const adminBase = new Airtable({
-  apiKey: process.env.AIRTABLE_ADMIN_API_KEY || process.env.AIRTABLE_API_KEY,
-}).base(process.env.AIRTABLE_ADMIN_BASE_ID || 'appiY4BA1rAyc3nT9');
-
-const watchlistCandidatesTable = process.env.AIRTABLE_WATCHLIST_CANDIDATES_TABLE || 'Watchlist Submission Candidates';
-
 /** @constant {Map} tables - Maps request table params to their proper names on the ESOVDB */
 const tables = new Map([
   [ 'videos', 'Videos' ],
@@ -319,15 +313,6 @@ const regexYTVideoId = /[\w\-]{10,12}/;
 
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 
-const getFirstCellValue = (value) => Array.isArray(value) ? value[0] : value;
-
-const getOverturnedClassifierReason = (originalReason) => {
-  const normalizedReason = String(originalReason || '').trim();
-  return normalizedReason
-    ? `Overturned classifier decision. (Original exclusion reason: ${normalizedReason})`
-    : 'Overturned classifier decision.';
-};
-
 const findSubmissionByCandidateId = async (candidateId) => {
   const escapedCandidateId = escapeAirtableFormulaString(candidateId);
   const records = await base('Submissions')
@@ -338,16 +323,6 @@ const findSubmissionByCandidateId = async (candidateId) => {
     .firstPage();
 
   return records && records.length ? records[0] : null;
-};
-
-const updateOverturnedCandidate = async (candidate, submissionRecordId, classifierReason) => {
-  await rateLimiter.wrap(
-    adminBase(watchlistCandidatesTable).update(candidate.id, {
-      'Classifier Result': 'Include',
-      'Classifier Reason': classifierReason,
-      'Submission Record ID': submissionRecordId
-    })
-  );
 };
 
 /** @constant {Map} formatFields - Maps each format, as passed in the URL query params to a list of fields that Airtable should retrieve, for that format. */
@@ -1327,7 +1302,7 @@ module.exports = {
   
   watchlist: {
 
-    includeExcludedCandidate: async (candidateId) => {
+    createSubmissionForOverriddenCandidate: async (candidateId, input = {}) => {
       const normalizedCandidateId = String(candidateId || '').trim();
       if (!/^rec[a-zA-Z0-9]{14}$/.test(normalizedCandidateId)) {
         const err = new Error('Invalid Watchlist Submission Candidate record ID.');
@@ -1345,63 +1320,23 @@ module.exports = {
       }
 
       try {
-        const candidate = await adminBase(watchlistCandidatesTable).find(normalizedCandidateId);
-        if (!candidate) {
-          const err = new Error(`Watchlist submission candidate not found: ${normalizedCandidateId}`);
-          err.code = 'WATCHLIST_CANDIDATE_NOT_FOUND';
-          throw err;
-        }
-
-        const classifierResult = candidate.get('Classifier Result');
-        const storedSubmissionRecordId = String(candidate.get('Submission Record ID') || '').trim();
-        const originalClassifierReason = candidate.get('Classifier Reason');
-        const classifierReason = getOverturnedClassifierReason(originalClassifierReason);
-
-        if (classifierResult === 'Include' && storedSubmissionRecordId) {
-          return {
-            ok: true,
-            alreadyIncluded: true,
-            candidateRecordId: candidate.id,
-            submissionRecordId: storedSubmissionRecordId,
-            classifierReason: String(candidate.get('Classifier Reason') || '')
-          };
-        }
-
-        if (classifierResult !== 'Exclude') {
-          const err = new Error(`Candidate must have Classifier Result "Exclude"; received "${classifierResult || 'blank'}".`);
-          err.code = 'WATCHLIST_CANDIDATE_NOT_EXCLUDED';
-          throw err;
-        }
-
-        if (storedSubmissionRecordId) {
-          await updateOverturnedCandidate(candidate, storedSubmissionRecordId, classifierReason);
-          return {
-            ok: true,
-            recovered: true,
-            candidateRecordId: candidate.id,
-            submissionRecordId: storedSubmissionRecordId,
-            classifierReason
-          };
-        }
-
-        const existingSubmission = await findSubmissionByCandidateId(candidate.id);
+        const existingSubmission = await findSubmissionByCandidateId(normalizedCandidateId);
         if (existingSubmission) {
-          await updateOverturnedCandidate(candidate, existingSubmission.id, classifierReason);
           return {
             ok: true,
-            recovered: true,
-            candidateRecordId: candidate.id,
-            submissionRecordId: existingSubmission.id,
-            classifierReason
+            alreadyCreated: true,
+            candidateRecordId: normalizedCandidateId,
+            submissionRecordId: existingSubmission.id
           };
         }
 
-        const videoId = String(candidate.get('Video ID') || '').trim();
-        const watchlistSourceRecordId = String(candidate.get('Watchlist Source Record ID') || '').trim();
-        const watchlistRunId = String(getFirstCellValue(candidate.get('Watchlist Run ID')) || '').trim();
-        const relevanceScore = candidate.get('Relevance Score');
+        const videoId = String(input.videoId || '').trim();
+        const watchlistSourceRecordId = String(input.watchlistSourceRecordId || '').trim();
+        const watchlistRunId = String(input.watchlistRunId || '').trim();
+        const classifierReason = String(input.classifierReason || '').trim();
+        const relevanceScore = Number(input.relevanceScore);
 
-        if (!regexYTVideoId.test(videoId)) {
+        if (!/^[\w-]{11}$/.test(videoId)) {
           const err = new Error('Candidate is missing a valid YouTube video ID.');
           err.code = 'WATCHLIST_CANDIDATE_VIDEO_INVALID';
           throw err;
@@ -1413,18 +1348,24 @@ module.exports = {
           throw err;
         }
 
+        if (!classifierReason) {
+          const err = new Error('Candidate override reason is required.');
+          err.code = 'WATCHLIST_CANDIDATE_REASON_REQUIRED';
+          throw err;
+        }
+
         const { getVideo } = require('./youtube');
         const video = await getVideo(videoId);
         const submissionFields = {
           'Watchlist Source': [ watchlistSourceRecordId ],
-          'Candidate ID': candidate.id,
+          'Candidate ID': normalizedCandidateId,
           'Smart Filtered': true,
           'Smart Filter Reason': classifierReason,
           'Smart Filter Needs Review': false
         };
 
         if (watchlistRunId) submissionFields['Watchlist Run ID'] = watchlistRunId;
-        if (typeof relevanceScore === 'number') submissionFields['Smart Filter Relevance Score'] = relevanceScore;
+        if (Number.isFinite(relevanceScore)) submissionFields['Smart Filter Relevance Score'] = relevanceScore;
 
         const submission = await module.exports.addSubmissionFromYouTubeVideo(
           video,
@@ -1433,14 +1374,13 @@ module.exports = {
           submissionFields
         );
 
-        await updateOverturnedCandidate(candidate, submission.id, classifierReason);
-        console.log(`Overturned smart-filter exclusion for candidate ${candidate.id}; created submission ${submission.id}.`);
+        console.log(`Created submission ${submission.id} for overturned smart-filter candidate ${normalizedCandidateId}.`);
 
         return {
           ok: true,
-          candidateRecordId: candidate.id,
-          submissionRecordId: submission.id,
-          classifierReason
+          alreadyCreated: false,
+          candidateRecordId: normalizedCandidateId,
+          submissionRecordId: submission.id
         };
       } finally {
         await db.del(lockKey).catch((err) => {

@@ -59,16 +59,13 @@ curl "$ESOVDB_API_BASE_URL/watch/smart-filter/dry-run/sfdr_..." \
 
 ## Watchlist Candidate Overrides
 
-`POST /watch/smart-filter/candidates/:candidateId/include` turns an excluded Admin-base candidate into a main-base submission and records the manual override. It is intended only for the Airtable Script Extension in the watchlist runner repository.
+`POST /watch/smart-filter/candidates/:candidateId/include` creates the main-base submission for a candidate whose exclusion is being overturned. It is intended only for the Airtable Automation script in the watchlist runner repository.
 
 Configure these deployment variables:
 
-- `AIRTABLE_ADMIN_API_KEY`: a token with read/write access to the Admin base; defaults to `AIRTABLE_API_KEY`
-- `AIRTABLE_ADMIN_BASE_ID`: defaults to the ESOVDB Admin base
-- `AIRTABLE_WATCHLIST_CANDIDATES_TABLE`: defaults to `Watchlist Submission Candidates`
 - `WATCHLIST_OVERRIDE_KEY`: a purpose-specific secret accepted only by this endpoint
 
-The endpoint accepts the secret in `x-esovdb-watchlist-override-key`. It validates the candidate state, uses fresh YouTube metadata, preserves the original classifier reason in the override message, links the submission to its candidate, run, and watchlist source, and repairs interrupted requests through the submission `Candidate ID` before creating a new record.
+The endpoint accepts the secret in `x-esovdb-watchlist-override-key` and the candidate metadata as JSON. It uses fresh YouTube metadata, creates the submission with candidate, run, filter, and watchlist-source attribution, and returns the submission record ID. The Airtable Automation owns all Admin-base validation and updates through Airtable's internal scripting API; its `ESOVDB_API_KEY` secret contains the server's purpose-specific `WATCHLIST_OVERRIDE_KEY`. Repeated requests recover the existing submission through `Candidate ID` instead of creating a duplicate.
 
 ## Adapting this project to your own
 
