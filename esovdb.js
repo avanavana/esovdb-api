@@ -1352,6 +1352,7 @@ module.exports = {
 
     createSubmissionForOverriddenCandidate: async (candidateId, input = {}) => {
       const normalizedCandidateId = String(candidateId || '').trim();
+      console.log(`Processing overturned smart-filter candidate "${normalizedCandidateId || 'Invalid Candidate ID'}"...`);
 
       if (!/^rec[a-zA-Z0-9]{14}$/.test(normalizedCandidateId)) {
         const err = new Error('Invalid Watchlist Submission Candidate record ID.');
@@ -1372,6 +1373,8 @@ module.exports = {
         const existingSubmission = await findSubmissionByCandidateId(normalizedCandidateId);
 
         if (existingSubmission) {
+          console.log(`Recovered existing submission "${existingSubmission.id}" for overturned smart-filter candidate "${normalizedCandidateId}".`);
+
           return {
             ok: true,
             alreadyCreated: true,
@@ -1403,6 +1406,8 @@ module.exports = {
           err.code = 'WATCHLIST_CANDIDATE_REASON_REQUIRED';
           throw err;
         }
+
+        console.log(`Creating a submission for overturned smart-filter candidate "${normalizedCandidateId}" from YouTube video "${videoId}"...`);
 
         const { getVideo } = require('./youtube');
         const video = await getVideo(videoId);

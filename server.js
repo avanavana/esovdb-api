@@ -63,26 +63,6 @@ const middleware = {
     }
   },
 
-  /**
-   *  Authorizes the purpose-scoped Watchlist candidate override endpoint.
-   *
-   *  @method watchlistOverrideAuth
-   *  @param {!express:Request} req - Express.js HTTP request containing x-esovdb-watchlist-override-key
-   *  @param {!express:Response} res - Express.js HTTP response
-   *  @param {!express:NextFunction} next - The next middleware function in the stack
-   *  @returns {void|express:Response} Continues authenticated requests or sends an error response
-   */
-
-  watchlistOverrideAuth: (req, res, next) => {
-    const configuredKey = process.env.WATCHLIST_OVERRIDE_KEY;
-    const providedKey = req.headers['x-esovdb-watchlist-override-key'];
-
-    if (!configuredKey) return res.status(503).json({ error: 'Watchlist candidate overrides are not configured.' });
-    if (providedKey === configuredKey) return next();
-
-    return res.status(401).json({ error: 'Unauthorized watchlist candidate override.' });
-  },
-  
   allowCORS: (req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     next();
@@ -502,18 +482,18 @@ app.route('/watch/smart-filter/dry-run/:dryRunId/result')
 
 /**
  *  Creates or recovers the main-base submission for an overturned smart-filter candidate.
- *  The Airtable Automation authenticates with a purpose-specific key and owns all Admin-base updates.
+ *  The Airtable Automation authenticates with the standard ESOVDB API key and owns all Admin-base updates.
  *
- *  @requires middleware.watchlistOverrideAuth
+ *  @requires middleware.auth
  *  @requires esovdb.watchlist.createSubmissionForOverriddenCandidate
  *  @callback esovdb.watchlist.createSubmissionForOverriddenCandidate
  */
 
 app.post(
   '/watch/smart-filter/candidates/:candidateId/include',
-  [ middleware.watchlistOverrideAuth, middleware.validateReq, express.json() ],
+  [ middleware.auth, middleware.validateReq, express.json() ],
   async (req, res) => {
-    console.log('Performing watch/smart-filter/candidates/include request...');
+    console.log(`Performing watch/smart-filter/candidates/include request for candidate "${req.params.candidateId}"...`);
 
     try {
       const result = await esovdb.watchlist.createSubmissionForOverriddenCandidate(

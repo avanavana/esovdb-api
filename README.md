@@ -61,11 +61,7 @@ curl "$ESOVDB_API_BASE_URL/watch/smart-filter/dry-run/sfdr_..." \
 
 `POST /watch/smart-filter/candidates/:candidateId/include` creates the main-base submission for a candidate whose exclusion is being overturned. It is intended only for the Airtable Automation script in the watchlist runner repository.
 
-Configure these deployment variables:
-
-- `WATCHLIST_OVERRIDE_KEY`: a purpose-specific secret accepted only by this endpoint
-
-The endpoint accepts the secret in `x-esovdb-watchlist-override-key` and the candidate metadata as JSON. It uses fresh YouTube metadata, creates the submission with candidate, run, filter, and watchlist-source attribution, and returns the submission record ID. The Airtable Automation owns all Admin-base validation and updates through Airtable's internal scripting API; its `ESOVDB_API_KEY` secret contains the server's purpose-specific `WATCHLIST_OVERRIDE_KEY`. Repeated requests recover the existing submission through `Candidate ID` instead of creating a duplicate.
+The endpoint uses the standard ESOVDB API authentication through `x-esovdb-key` and `ESOVDB_KEY`, and accepts the candidate metadata as JSON. It uses fresh YouTube metadata, creates the submission with candidate, run, filter, and watchlist-source attribution, and returns the submission record ID. The Airtable Automation owns all Admin-base validation and updates through Airtable's internal scripting API; its `ESOVDB_API_KEY` secret contains the existing ESOVDB API key. Repeated requests recover the existing submission through `Candidate ID` instead of creating a duplicate.
 
 ## Adapting this project to your own
 
