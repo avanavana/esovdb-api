@@ -1257,7 +1257,7 @@ module.exports = {
    */
 
   addSubmissionFromYouTubeVideo: async (video, submittedBy = 'ESOVDB API', submissionSource = 'ESOVDB API', extraFields = {}) => {
-    const created = await rateLimiter.wrap(
+    const created = await rateLimiter.schedule(() =>
       base('Submissions').create({
         'Title': video.title || '',
         'URL': `https://youtu.be/${video.id}`,
