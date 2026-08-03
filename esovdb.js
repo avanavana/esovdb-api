@@ -1278,6 +1278,16 @@ module.exports = {
     return created;
   },
 
+  /**
+   *  Finds an existing YouTube video in the main Videos table or open Submissions view.
+   *
+   *  Videos take precedence when the same YouTube ID is present in both locations.
+   *
+   *  @method findYouTubeVideoOrSubmission
+   *  @param {string} videoId - YouTube video ID to find in Airtable URL fields
+   *  @returns {Promise<{table: ('Videos'|'Submissions'), record: Object}|null>} The matching table and Airtable record, or null when no match exists
+   */
+
   findYouTubeVideoOrSubmission: async (videoId) => {
     const escapedVideoId = escapeAirtableFormulaString(videoId);
 
@@ -1342,6 +1352,7 @@ module.exports = {
 
     createSubmissionForOverriddenCandidate: async (candidateId, input = {}) => {
       const normalizedCandidateId = String(candidateId || '').trim();
+
       if (!/^rec[a-zA-Z0-9]{14}$/.test(normalizedCandidateId)) {
         const err = new Error('Invalid Watchlist Submission Candidate record ID.');
         err.code = 'WATCHLIST_CANDIDATE_INVALID';
@@ -1359,6 +1370,7 @@ module.exports = {
 
       try {
         const existingSubmission = await findSubmissionByCandidateId(normalizedCandidateId);
+
         if (existingSubmission) {
           return {
             ok: true,
@@ -1394,6 +1406,7 @@ module.exports = {
 
         const { getVideo } = require('./youtube');
         const video = await getVideo(videoId);
+
         const submissionFields = {
           'Watchlist Source': [ watchlistSourceRecordId ],
           'Candidate ID': normalizedCandidateId,
