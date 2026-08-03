@@ -63,6 +63,16 @@ const middleware = {
     }
   },
 
+  /**
+   *  Authorizes the purpose-scoped Watchlist candidate override endpoint.
+   *
+   *  @method watchlistOverrideAuth
+   *  @param {!express:Request} req - Express.js HTTP request containing x-esovdb-watchlist-override-key
+   *  @param {!express:Response} res - Express.js HTTP response
+   *  @param {!express:NextFunction} next - The next middleware function in the stack
+   *  @returns {void|express:Response} Continues authenticated requests or sends an error response
+   */
+
   watchlistOverrideAuth: (req, res, next) => {
     const configuredKey = process.env.WATCHLIST_OVERRIDE_KEY;
     const providedKey = req.headers['x-esovdb-watchlist-override-key'];
@@ -489,6 +499,15 @@ app.route('/watch/smart-filter/dry-run/:dryRunId/result')
     }
   )
   .options(cors());
+
+/**
+ *  Creates or recovers the main-base submission for an overturned smart-filter candidate.
+ *  The Airtable Automation authenticates with a purpose-specific key and owns all Admin-base updates.
+ *
+ *  @requires middleware.watchlistOverrideAuth
+ *  @requires esovdb.watchlist.createSubmissionForOverriddenCandidate
+ *  @callback esovdb.watchlist.createSubmissionForOverriddenCandidate
+ */
 
 app.post(
   '/watch/smart-filter/candidates/:candidateId/include',

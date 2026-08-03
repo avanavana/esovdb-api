@@ -313,6 +313,14 @@ const regexYTVideoId = /[\w\-]{10,12}/;
 
 const rateLimiter = new Bottleneck({ minTime: airtableRateLimit });
 
+/**
+ *  Finds the main-base submission created for a Watchlist submission candidate.
+ *
+ *  @function findSubmissionByCandidateId
+ *  @param {string} candidateId - Airtable record ID from the Admin-base Watchlist Submission Candidates table
+ *  @returns {Promise<Object|null>} The matching Submissions record, or null when the candidate has no submission
+ */
+
 const findSubmissionByCandidateId = async (candidateId) => {
   const escapedCandidateId = escapeAirtableFormulaString(candidateId);
   const records = await base('Submissions')
@@ -1237,6 +1245,17 @@ module.exports = {
     }
   },
   
+  /**
+   *  Creates a main-base Submissions record from YouTube video metadata.
+   *
+   *  @method addSubmissionFromYouTubeVideo
+   *  @param {Object} video - Normalized YouTube video metadata
+   *  @param {string=} submittedBy - Value stored in the Submitted by field
+   *  @param {string=} submissionSource - Value stored in the Submission Source field
+   *  @param {Object=} extraFields - Additional Airtable fields merged after the standard YouTube fields
+   *  @returns {Promise<Object>} The created Airtable Submissions record
+   */
+
   addSubmissionFromYouTubeVideo: async (video, submittedBy = 'ESOVDB API', submissionSource = 'ESOVDB API', extraFields = {}) => {
     const created = await rateLimiter.wrap(
       base('Submissions').create({
@@ -1301,6 +1320,25 @@ module.exports = {
   },
   
   watchlist: {
+
+    /**
+     *  Creates or recovers the main-base submission for an overturned smart-filter candidate.
+     *
+     *  The caller remains responsible for validating and updating the candidate in the Admin base.
+     *  Candidate ID provides idempotency when a prior request created the submission but did not
+     *  complete the Admin-base update.
+     *
+     *  @method watchlist.createSubmissionForOverriddenCandidate
+     *  @param {string} candidateId - Admin-base Watchlist Submission Candidates record ID
+     *  @param {Object} input - Candidate metadata supplied by the Airtable Automation
+     *  @param {string} input.videoId - YouTube video ID
+     *  @param {string} input.watchlistSourceRecordId - Main-base Watchlist record ID
+     *  @param {string=} input.watchlistRunId - Admin-base Watchlist Runs record ID retained as submission audit metadata
+     *  @param {string} input.classifierReason - Audit reason describing the overturned classifier decision
+     *  @param {number=} input.relevanceScore - Smart-filter relevance score
+     *  @returns {Promise<{ok: boolean, alreadyCreated: boolean, candidateRecordId: string, submissionRecordId: string}>} The created or recovered submission identity
+     *  @throws {Error} When identifiers or required metadata are invalid, another request holds the candidate lock, or submission creation fails
+     */
 
     createSubmissionForOverriddenCandidate: async (candidateId, input = {}) => {
       const normalizedCandidateId = String(candidateId || '').trim();
